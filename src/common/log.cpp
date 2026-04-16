@@ -1,4 +1,5 @@
 #include "log.h"
+#include "zlog_i18n.h"
 
 
 int ZLog::g_nLogLevel = ZLog::E_INFO;
@@ -9,9 +10,13 @@ void ZLog::_Print(const char* szLog, int nColor)
 		return;
 	}
 
+	string strProcessed;
+	ZLogI18n::Apply(szLog, strProcessed);
+	const char* szOut = strProcessed.c_str();
+
 #ifdef _WIN32
 
-	string strLog = szLog;
+	string strLog = szOut;
 	HANDLE hConsole = ::GetStdHandle(STD_OUTPUT_HANDLE);
 	if (nColor > 0) {
 		::SetConsoleTextAttribute(hConsole, nColor);
@@ -41,7 +46,7 @@ void ZLog::_Print(const char* szLog, int nColor)
 	if (NULL != szColor) {
 		write(STDOUT_FILENO, szColor, strlen(szColor));
 	}
-	write(STDOUT_FILENO, szLog, strlen(szLog));
+	write(STDOUT_FILENO, szOut, strlen(szOut));
 	if (NULL != szColor) {
 		write(STDOUT_FILENO, "\033[0m", 4);
 	}
