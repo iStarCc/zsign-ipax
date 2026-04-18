@@ -721,7 +721,7 @@ bool ZBundle::SignFolder(ZSignAsset* pSignAsset,
 	strAppName = ic.U82A(strAppName);
 #endif
 
-	ZLog::PrintV(">>> Signing: \t%s ...\n", m_strAppFolder.c_str());
+	ZLog::PrintV(">>> Signing: \t%s ...\n", ZUtil::GetBaseName(m_strAppFolder.c_str()));
 	ZLog::PrintV(">>> AppName: \t%s\n", strAppName.c_str());
 	ZLog::PrintV(">>> BundleId: \t%s\n", jvRoot["bundle_id"].as_cstr());
 	ZLog::PrintV(">>> Version: \t%s\n", jvRoot["bundle_version"].as_cstr());

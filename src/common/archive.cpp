@@ -1,4 +1,5 @@
 #include "archive.h"
+#include "archive_zip_progress.h"
 
 #include "third-party/minizip/zip.h"
 #include "third-party/minizip/unzip.h"
@@ -40,6 +41,21 @@ bool Zip::_WriteFileToZip(void* hZip, const string& strFile, const string& strRe
 		return false;
 	}
 
+	struct stat st = { 0 };
+	uint64_t uFileSize = 0;
+	if (0 == stat(strFile.c_str(), &st)) {
+		uFileSize = (uint64_t)st.st_size;
+	}
+	if (uFileSize == 0) {
+		if (0 == fseek(fp, 0, SEEK_END)) {
+			long long n = ftello(fp);
+			if (n > 0) {
+				uFileSize = (uint64_t)n;
+			}
+			fseek(fp, 0, SEEK_SET);
+		}
+	}
+
 	zip_fileinfo zi = { 0 };
 	GetModificationTime(strFile.c_str(), &zi);
 	if (ZIP_OK != zipOpenNewFileInZip3_64(hZip, strRelativePath.c_str(), &zi, NULL, 0, NULL, 0, NULL, Z_DEFLATED, zip_level, 0, -MAX_WBITS, DEF_MEM_LEVEL, 0, NULL, 0, 0)) {
@@ -48,13 +64,35 @@ bool Zip::_WriteFileToZip(void* hZip, const string& strFile, const string& strRe
 		return false;
 	}
 
+	/* 单文件 < 阈值时仅依赖「条目级」进度；阈值过高时 10–40MB 主二进制也会长时间无换行。 */
+	static const uint64_t kLargeFileThreshold = 8ULL * 1024ULL * 1024ULL;
+	static const uint64_t kHeartbeatBytes = 4ULL * 1024ULL * 1024ULL;
+	static const uint64_t kFirstPulseBytes = 1ULL * 1024ULL * 1024ULL;
+
 	bool bRet = true;
+	uint64_t written_total = 0;
+	uint64_t since_heartbeat = 0;
+	bool bDidFirstPulse = false;
 	char buffer[4096];
 	size_t bytes_read = fread(buffer, 1, sizeof(buffer), fp);
 	while (bytes_read > 0) {
 		if (zipWriteInFileInZip(hZip, buffer, (uint32_t)bytes_read) < 0) {
 			bRet = false;
 			break;
+		}
+		written_total += (uint64_t)bytes_read;
+		if (uFileSize >= kLargeFileThreshold) {
+			if (!bDidFirstPulse && written_total >= kFirstPulseBytes) {
+				ZipLogLargeFileCompressProgress(strRelativePath, written_total, uFileSize);
+				bDidFirstPulse = true;
+				since_heartbeat = 0;
+			} else {
+				since_heartbeat += (uint64_t)bytes_read;
+				if (since_heartbeat >= kHeartbeatBytes) {
+					ZipLogLargeFileCompressProgress(strRelativePath, written_total, uFileSize);
+					since_heartbeat = 0;
+				}
+			}
 		}
 		bytes_read = fread(buffer, 1, sizeof(buffer), fp);
 	}
@@ -89,6 +127,9 @@ bool Zip::Archive(const string& strFolder, const string& strZipFile, int nZipLev
         return false;
     }
 
+	const size_t nTotalEntries = ZipArchiveEntryCount(strFolder);
+	int nDone = 0;
+
 	bool bRet = true;
 	ZFile::EnumFolder(strFolder.c_str(), true, NULL, [&](bool bFolder, const string& strPath) {
 		string strRelativePath = strPath.substr(strFolder.size() + 1);
@@ -111,6 +152,9 @@ bool Zip::Archive(const string& strFolder, const string& strZipFile, int nZipLev
 				return true;
 			}
 		}
+		nDone++;
+		if (nTotalEntries > 0)
+			ZipLogCompressProgress(nDone, (int)nTotalEntries, strRelativePath);
 		return false;
 	});
 

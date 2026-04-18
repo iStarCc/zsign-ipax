@@ -138,6 +138,7 @@
     <ClCompile Include="..\..\..\..\src\archo.cpp" />
     <ClCompile Include="..\..\..\..\src\bundle.cpp" />
     <ClCompile Include="..\..\..\..\src\common\archive.cpp" />
+    <ClCompile Include="..\..\..\..\src\common\archive_zip_progress.cpp" />
     <ClCompile Include="..\..\..\..\src\common\base64.cpp" />
     <ClCompile Include="..\..\..\..\src\common\fs.cpp" />
     <ClCompile Include="..\..\..\..\src\common\json.cpp" />

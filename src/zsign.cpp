@@ -1,4 +1,5 @@
 #include "common.h"
+#include <cstdio>
 #include <list>
 #include <set>
 #include "macho.h"
@@ -19,6 +20,26 @@
 #define ZSIGN_STR_(x) #x
 #define ZSIGN_STR(x) ZSIGN_STR_(x)
 #define ZSIGN_VERSION_STR ZSIGN_STR(ZSIGN_VERSION)
+
+/** Map @executable_path/… or @rpath/… install name to path under .app (strTarget = …/App.app or …/App.app/Executable). */
+static string ZSignResolveLoadNameDylibOnDisk(const string& strDylibFile, const string& strTargetPath)
+{
+	static const char kExe[] = "@executable_path/";
+	static const char kRpath[] = "@rpath/";
+	const char* rel = NULL;
+	if (strncmp(strDylibFile.c_str(), kExe, sizeof(kExe) - 1) == 0) {
+		rel = strDylibFile.c_str() + (sizeof(kExe) - 1);
+	} else if (strncmp(strDylibFile.c_str(), kRpath, sizeof(kRpath) - 1) == 0) {
+		rel = strDylibFile.c_str() + (sizeof(kRpath) - 1);
+	} else {
+		return strDylibFile;
+	}
+	string appRoot = strTargetPath;
+	if (!ZFile::IsFolder(strTargetPath.c_str())) {
+		ZFile::PathRemoveFileSpec(appRoot);
+	}
+	return appRoot + "/" + string(rel);
+}
 
 const struct option options[] = {
 	{"debug", no_argument, NULL, 'd'},
@@ -95,6 +116,10 @@ int usage()
 
 int main(int argc, char* argv[])
 {
+	/* 通过管道由 Python 等父进程读日志时，默认全缓冲会导致结束才一次性写出；强制无缓冲以便实时 readline */
+	setvbuf(stdout, NULL, _IONBF, 0);
+	setvbuf(stderr, NULL, _IONBF, 0);
+
 	ZTimer atimer;
 	ZTimer gtimer;
 
@@ -167,7 +192,11 @@ int main(int argc, char* argv[])
 			strEntitleFile = ZFile::GetFullPath(optarg);
 			break;
 		case 'l':
-			arrDylibFiles.push_back(ZFile::GetFullPath(optarg));
+			if (strncmp(optarg, "@executable_path/", 18) == 0 || strncmp(optarg, "@rpath/", 7) == 0) {
+				arrDylibFiles.push_back(optarg);
+			} else {
+				arrDylibFiles.push_back(ZFile::GetFullPath(optarg));
+			}
 			break;
 		case 'D':
 			arrRemoveDylibNames.push_back(optarg);
@@ -252,13 +281,14 @@ int main(int argc, char* argv[])
 	}
 
 	for (const string& strDylibFile : arrDylibFiles) {
-		if (!ZFile::IsFileExists(strDylibFile.c_str())) {
-			ZLog::ErrorV(">>> Dylib file not found! %s\n", strDylibFile.c_str());
+		string resolved = ZSignResolveLoadNameDylibOnDisk(strDylibFile, strPath);
+		if (!ZFile::IsFileExists(resolved.c_str())) {
+			ZLog::ErrorV(">>> Dylib file not found! %s (expected at %s)\n", strDylibFile.c_str(), resolved.c_str());
 			return -1;
 		}
 		ZMachO dylibMachO;
-		if (!dylibMachO.Init(strDylibFile.c_str())) {
-			ZLog::ErrorV(">>> Invalid dylib file! Not a valid Mach-O format. %s\n", strDylibFile.c_str());
+		if (!dylibMachO.Init(resolved.c_str())) {
+			ZLog::ErrorV(">>> Invalid dylib file! Not a valid Mach-O format. %s\n", resolved.c_str());
 			return -1;
 		}
 	}
@@ -313,7 +343,7 @@ int main(int argc, char* argv[])
 		}
 
 		atimer.Reset();
-		ZLog::PrintV(">>> Signing:\t%s %s\n", strPath.c_str(), (bAdhoc ? " (Ad-hoc)" : ""));
+		ZLog::PrintV(">>> Signing:\t%s %s\n", ZUtil::GetBaseName(strPath.c_str()), (bAdhoc ? " (Ad-hoc)" : ""));
 		string strInfoSHA1;
 		string strInfoSHA256;
 		string strCodeResourcesData;
@@ -391,7 +421,7 @@ int main(int argc, char* argv[])
 		size_t pos = bundle.m_strAppFolder.rfind("Payload");
 		if (string::npos != pos && pos > 0) {
 			atimer.Reset();
-			ZLog::PrintV(">>> Archiving: \t%s ... \n", strOutputFile.c_str());
+			ZLog::PrintV(">>> Archiving: \t%s ... \n", ZUtil::GetBaseName(strOutputFile.c_str()));
 			string strBaseFolder = bundle.m_strAppFolder.substr(0, pos - 1);
 			if (!Zip::Archive(strBaseFolder.c_str(), strOutputFile.c_str(), uZipLevel)) {
 				ZLog::Error(">>> Archive failed!\n");

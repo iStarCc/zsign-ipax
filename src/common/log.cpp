@@ -1,5 +1,6 @@
 #include "log.h"
 #include "zlog_i18n.h"
+#include <cstdio>
 
 
 int ZLog::g_nLogLevel = ZLog::E_INFO;
@@ -25,6 +26,8 @@ void ZLog::_Print(const char* szLog, int nColor)
 	if (nColor > 0) {
 		::SetConsoleTextAttribute(hConsole, 7);
 	}
+	fflush(stdout);
+	fflush(stderr);
 
 #else
 
@@ -50,7 +53,9 @@ void ZLog::_Print(const char* szLog, int nColor)
 	if (NULL != szColor) {
 		write(STDOUT_FILENO, "\033[0m", 4);
 	}
-	
+	fflush(stdout);
+	fflush(stderr);
+
 #endif
 }
 
