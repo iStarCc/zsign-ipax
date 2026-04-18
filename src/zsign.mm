@@ -177,10 +177,10 @@ int zsign(
 	bool removeUISupportedDevices,
 	bool removeWatchApp,
 	bool enableDocuments,
-	NSString *minOSVersion,
+	NSString * _Nullable minOSVersion,
 	bool removeExtensions,
 	bool zh,
-	void(^completionHandler)(BOOL success, NSError *error)
+	void (^ _Nullable completionHandler)(BOOL success, NSError * _Nullable error)
 ) {
 	struct ZsignLangScope {
 		bool on_;
@@ -259,7 +259,7 @@ int zsign(
 	bundle.m_strMinVersion = minOSVersion != nil ? string([minOSVersion UTF8String]) : string();
 	bundle.m_bRemoveExtensions = removeExtensions;
 	bool bRet = bundle.SignFolder(&zsa, strFolder, strBundleId, strBundleVersion, strDisplayName, arrDylibFiles, arrRemoveDylibNames, bForce, bWeakInject, bEnableCache, excludeprovion);
-	ZLog::PrintV(">>> Signing:\t%s %s\n", strPath.c_str(), (bAdhoc ? " (Ad-hoc)" : ""));
+	ZLog::PrintV(">>> Signing:\t%s %s\n", ZUtil::GetBaseName(strPath.c_str()), (bAdhoc ? " (Ad-hoc)" : ""));
 	atimer.PrintResult(bRet, ">>> Signed %s!", bRet ? "OK" : "Failed");
 
 	NSError* signError = nil;
@@ -283,7 +283,7 @@ int checkCert(
 	NSString *prov,
 	NSString *key,
 	NSString *pass,
-	void(^completionHandler)(int status, NSDate* expirationDate, NSString *error)
+	void (^completionHandler)(int status, NSDate * _Nullable expirationDate, NSString * _Nullable error)
 ) {
 	ZTimer gtimer;
 
@@ -425,13 +425,13 @@ int checkCert(
 	return 1;
 }
 
-static void (^gLogHandler)(NSString *line) = nil;
+static void (^ _Nullable gLogHandler)(NSString * _Nullable line) = nil;
 
 static void ZsignLogSinkTrampoline(const char* utf8Line, int color, void* userdata)
 {
 	(void)color;
 	(void)userdata;
-	void (^h)(NSString *) = gLogHandler;
+	void (^ _Nullable h)(NSString * _Nullable) = gLogHandler;
 	if (!h || !utf8Line) {
 		return;
 	}
@@ -441,7 +441,7 @@ static void ZsignLogSinkTrampoline(const char* utf8Line, int color, void* userda
 	}
 }
 
-void ZsignSetLogHandler(void (^handler)(NSString *line))
+void ZsignSetLogHandler(void (^ _Nullable handler)(NSString * _Nullable line))
 {
 	gLogHandler = [handler copy];
 	if (handler) {

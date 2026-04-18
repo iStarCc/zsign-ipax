@@ -15,10 +15,12 @@
 extern "C" {
 #endif
 
+NS_ASSUME_NONNULL_BEGIN
+
 bool CheckIfSigned(NSString *filePath);
 bool InjectDyLib(NSString *filePath, NSString *dylibPath, bool weakInject);
 bool UninstallDylibs(NSString *filePath, NSArray<NSString *> *dylibPathsArray);
-NSArray<NSString *> *ListDylibs(NSString *filePath);
+NSArray<NSString *> * _Nullable ListDylibs(NSString *filePath);
 bool ChangeDylibPath(NSString *filePath, NSString *oldPath, NSString *newPath);
 
 int zsign(
@@ -35,21 +37,23 @@ int zsign(
 	bool removeUISupportedDevices,
 	bool removeWatchApp,
 	bool enableDocuments,
-	NSString *minOSVersion,
+	NSString * _Nullable minOSVersion,
 	bool removeExtensions,
 	bool zh,
-	void(^ _Nullable completionHandler)(BOOL success, NSError * _Nullable error)
+	void (^ _Nullable completionHandler)(BOOL success, NSError * _Nullable error)
 );
 
 int checkCert(
 	NSString *prov,
 	NSString *key,
 	NSString *pass,
-	void(^completionHandler)(int status, NSDate* expirationDate, NSString *error)
+	void (^completionHandler)(int status, NSDate * _Nullable expirationDate, NSString * _Nullable error)
 );
 
 /** 实时日志：每次 ZLog 输出一行（已 UTF-8、已 zlog_i18n）时回调；传 nil 关闭。可在任意线程调用。 */
 void ZsignSetLogHandler(void (^ _Nullable handler)(NSString * _Nullable line));
+
+NS_ASSUME_NONNULL_END
 
 #ifdef __cplusplus
 }
