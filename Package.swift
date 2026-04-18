@@ -26,9 +26,26 @@ let package = Package(
 	],
 	targets: [
 		.target(
+			name: "minizip",
+			path: "src/third-party/minizip",
+			sources: [
+				"ioapi.c",
+				"zip.c",
+				"unzip.c"
+			],
+			publicHeadersPath: ".",
+			cSettings: [
+				.headerSearchPath(".")
+			],
+			linkerSettings: [
+				.linkedLibrary("z")
+			]
+		),
+		.target(
 			name: "Zsign",
 			dependencies: [
-				.product(name: "OpenSSL", package: "OpenSSL")
+				.product(name: "OpenSSL", package: "OpenSSL"),
+				"minizip"
 			],
 			path: "src",
 			exclude: [
