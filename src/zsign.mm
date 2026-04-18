@@ -10,7 +10,7 @@
 #include "bundle.h"
 #include "timer.h"
 #include "log.h"
-#include "archive.h"
+#include "common/archive.h"
 
 #include <cstdlib>
 #include <string>
