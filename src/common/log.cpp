@@ -2,6 +2,20 @@
 #include "zlog_i18n.h"
 #include <cstdio>
 
+static ZLogExternalSink g_externalSink = nullptr;
+static void* g_externalUserdata = nullptr;
+
+extern "C" void ZLog_SetExternalSink(ZLogExternalSink sink, void* userdata)
+{
+	g_externalSink = sink;
+	g_externalUserdata = userdata;
+}
+
+extern "C" void ZLog_ClearExternalSink(void)
+{
+	g_externalSink = nullptr;
+	g_externalUserdata = nullptr;
+}
 
 int ZLog::g_nLogLevel = ZLog::E_INFO;
 
@@ -14,6 +28,10 @@ void ZLog::_Print(const char* szLog, int nColor)
 	string strProcessed;
 	ZLogI18n::Apply(szLog, strProcessed);
 	const char* szOut = strProcessed.c_str();
+
+	if (g_externalSink) {
+		g_externalSink(szOut, nColor, g_externalUserdata);
+	}
 
 #ifdef _WIN32
 

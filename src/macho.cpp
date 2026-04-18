@@ -272,6 +272,38 @@ bool ZMachO::InjectDylib(bool bWeakInject, const char* szDylibFile)
 	return true;
 }
 
+bool ZMachO::ChangeDylibPath(const char* oldPath, const char* newPath)
+{
+	ZLog::WarnV(">>> Change DyLib Path: %s -> %s ... \n", oldPath, newPath);
+
+	bool pathChanged = true;
+	for (size_t i = 0; i < m_arrArchOes.size(); i++) {
+		if (!m_arrArchOes[i]->ChangeDylibPath(oldPath, newPath)) {
+			ZLog::Error(">>> Failed to change path in one of the architectures!\n");
+			pathChanged = false;
+		}
+	}
+
+	if (pathChanged) {
+		ZLog::Warn(">>> Successfully changed all dylib paths!\n");
+	}
+	return pathChanged;
+}
+
+vector<string> ZMachO::ListDylibs()
+{
+	vector<string> dylibList;
+
+	for (size_t i = 0; i < m_arrArchOes.size(); i++) {
+		vector<string> archDylibs = m_arrArchOes[i]->ListDylibs();
+		dylibList.insert(dylibList.end(), archDylibs.begin(), archDylibs.end());
+	}
+
+	ZLog::WarnV(">>> Found %zu dylibs:\n", dylibList.size());
+
+	return dylibList;
+}
+
 void ZMachO::RemoveDylibs(const set<string>& setDylibs)
 {
 	for (size_t i = 0; i < m_arrArchOes.size(); i++) {

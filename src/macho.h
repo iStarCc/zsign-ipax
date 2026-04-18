@@ -20,6 +20,8 @@ public:
 				string strInfoSHA256, 
 				const string& strCodeResourcesData);
 	bool InjectDylib(bool bWeakInject, const char* szDylibFile);
+	bool ChangeDylibPath(const char* oldPath, const char* newPath);
+	vector<string> ListDylibs();
 	void RemoveDylibs(const set<string>& setDylibs);
 
 private:

@@ -52,8 +52,6 @@ public:
 	string	m_strProvData;
 	string	m_strEntitleData;
 	string	m_strApplicationId;
-
-private:
 	void*	m_evpPKey;
 	void*	m_x509Cert;
 

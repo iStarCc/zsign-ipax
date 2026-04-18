@@ -243,7 +243,7 @@ bool ZSign::SlotBuildRequirements(const string& strBundleID, const string& strSu
 	appendBE32(CSMAGIC_REQUIREMENTS);
 	appendBE32(totalLen);
 	appendBE32(1); // count = 1
-	appendBE32(kSecDesignatedRequirementType); // type = 3
+	appendBE32(kZSignSecDesignatedRequirementType);
 	appendBE32(outerHeaderLen); // offset to inner blob
 
 	// Inner: CSMAGIC_REQUIREMENT blob
