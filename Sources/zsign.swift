@@ -136,6 +136,79 @@ public enum Zsign {
 		}
 		return true
 	}
+
+	/// 签名并打包为 IPA：输入可为 `.ipa`（内部先解压）或 `.app` 目录，输出为 `.ipa`（minizip，与命令行 zsign `-o` 一致）。
+	/// 压缩阶段会通过 `ZLog` 输出条目进度（如 `Compressing:` / `压缩中:`）及大文件心跳日志；若传入 `logHandler`，可同时收到这些行（与 `sign` 相同，UTF-8）。
+	/// - Parameters:
+	///   - zipLevel: ZIP 压缩级别 0–9，默认 6。
+	///   - tempFolderPath: 临时目录（解压 / 中间 Payload）；空则使用系统临时目录。
+	///   - zh: 为本次调用设置 `ZSIGN_LANG=zh`，使 `ZLog`/`压缩进度` 等走中文（结束后恢复）。
+	static public func signIPA(
+		inputPath: String,
+		outputPath: String,
+		provisionPath: String = "",
+		p12Path: String = "",
+		p12Password: String = "",
+		entitlementsPath: String = "",
+		customIdentifier: String = "",
+		customName: String = "",
+		customVersion: String = "",
+		adhoc: Bool = false,
+		removeProvision: Bool = false,
+		removeUISupportedDevices: Bool = false,
+		removeWatchApp: Bool = false,
+		enableDocuments: Bool = false,
+		minOSVersion: String = "",
+		removeExtensions: Bool = false,
+		zipLevel: Int = 6,
+		tempFolderPath: String = "",
+		zh: Bool = false,
+		logHandler: ((String) -> Void)? = nil,
+		completion: ((Bool, Error?) -> Void)? = nil
+	) -> Bool {
+		if let logHandler {
+			ZsignSetLogHandler { (line: String?) in
+				guard let line else { return }
+				logHandler(line)
+			}
+		}
+		defer {
+			if logHandler != nil {
+				ZsignSetLogHandler(nil)
+			}
+		}
+		let zl = min(max(zipLevel, 0), 9)
+		if zsignIPA(
+			inputPath,
+			outputPath,
+			provisionPath,
+			p12Path,
+			p12Password,
+			entitlementsPath,
+			customIdentifier,
+			customName,
+			customVersion,
+			adhoc,
+			removeProvision,
+			removeUISupportedDevices,
+			removeWatchApp,
+			enableDocuments,
+			minOSVersion,
+			removeExtensions,
+			Int32(zl),
+			tempFolderPath.isEmpty ? nil : tempFolderPath,
+			zh,
+			completion.map { callback in
+				{ success, error in
+					callback(success, error)
+				}
+			}
+		) != 0 {
+			return false
+		}
+		return true
+	}
+
 	/// Check revokage
 	/// - Parameters:
 	///   - provisionPath: Relative path to a provisioning file (i.e. `samara.mobileprovision`)

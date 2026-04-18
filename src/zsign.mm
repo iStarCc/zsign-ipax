@@ -10,9 +10,41 @@
 #include "bundle.h"
 #include "timer.h"
 #include "log.h"
+#include "archive.h"
 
 #include <cstdlib>
 #include <string>
+
+namespace {
+
+struct ZsignLangScope {
+	bool on_;
+	std::string prev_;
+	bool hadPrev_;
+	explicit ZsignLangScope(bool zh) : on_(zh), hadPrev_(false) {
+		if (!on_) {
+			return;
+		}
+		const char* p = getenv("ZSIGN_LANG");
+		if (p) {
+			prev_.assign(p);
+			hadPrev_ = true;
+		}
+		setenv("ZSIGN_LANG", "zh", 1);
+	}
+	~ZsignLangScope() {
+		if (!on_) {
+			return;
+		}
+		if (!hadPrev_) {
+			unsetenv("ZSIGN_LANG");
+		} else {
+			setenv("ZSIGN_LANG", prev_.c_str(), 1);
+		}
+	}
+};
+
+} // namespace
 
 #include <openssl/ocsp.h>
 #include <openssl/x509.h>
@@ -182,32 +214,7 @@ int zsign(
 	bool zh,
 	void (^ _Nullable completionHandler)(BOOL success, NSError * _Nullable error)
 ) {
-	struct ZsignLangScope {
-		bool on_;
-		std::string prev_;
-		bool hadPrev_;
-		explicit ZsignLangScope(bool zh) : on_(zh), hadPrev_(false) {
-			if (!on_) {
-				return;
-			}
-			const char* p = getenv("ZSIGN_LANG");
-			if (p) {
-				prev_.assign(p);
-				hadPrev_ = true;
-			}
-			setenv("ZSIGN_LANG", "zh", 1);
-		}
-		~ZsignLangScope() {
-			if (!on_) {
-				return;
-			}
-			if (!hadPrev_) {
-				unsetenv("ZSIGN_LANG");
-			} else {
-				setenv("ZSIGN_LANG", prev_.c_str(), 1);
-			}
-		}
-	} langScope(zh);
+	ZsignLangScope langScope(zh);
 
 	ZTimer atimer;
 	ZTimer gtimer;
@@ -268,6 +275,191 @@ int zsign(
 			NSLocalizedDescriptionKey : @"Signing failed."
 		};
 		signError = [NSError errorWithDomain:@"Failed to Sign" code:-1 userInfo:userInfo];
+	}
+
+	if (completionHandler) {
+		completionHandler(bRet, signError);
+	}
+
+	gtimer.Print(">>> Done.");
+	return bRet ? 0 : -1;
+}
+
+int zsignIPA(
+	NSString *inputPath,
+	NSString *outputPath,
+	NSString *prov,
+	NSString *key,
+	NSString *pass,
+	NSString *entitlement,
+	NSString *bundleid,
+	NSString *displayname,
+	NSString *bundleversion,
+	bool adhoc,
+	bool dontGenerateEmbeddedMobileProvision,
+	bool removeUISupportedDevices,
+	bool removeWatchApp,
+	bool enableDocuments,
+	NSString * _Nullable minOSVersion,
+	bool removeExtensions,
+	int zipLevel,
+	NSString * _Nullable tempFolder,
+	bool zh,
+	void (^ _Nullable completionHandler)(BOOL success, NSError * _Nullable error)
+) {
+	ZsignLangScope langScope(zh);
+
+	ZTimer atimer;
+	ZTimer gtimer;
+
+	bool bForce = true;
+	bool bWeakInject = false;
+	bool bAdhoc = adhoc;
+	bool bSHA256Only = false;
+	int nZipLevel = (zipLevel >= 0 && zipLevel <= 9) ? zipLevel : 6;
+
+	string strCertFile;
+	string strPKeyFile;
+	string strProvFile;
+	string strPassword;
+	string strBundleId;
+	string strBundleVersion;
+	string strDisplayName;
+	string strEntitleFile;
+	vector<string> arrDylibFiles;
+	vector<string> arrRemoveDylibNames;
+
+	strPKeyFile = [key cStringUsingEncoding:NSUTF8StringEncoding];
+	strProvFile = [prov cStringUsingEncoding:NSUTF8StringEncoding];
+	strPassword = [pass cStringUsingEncoding:NSUTF8StringEncoding];
+	strEntitleFile = [entitlement cStringUsingEncoding:NSUTF8StringEncoding];
+	strBundleId = [bundleid cStringUsingEncoding:NSUTF8StringEncoding];
+	strDisplayName = [displayname cStringUsingEncoding:NSUTF8StringEncoding];
+	strBundleVersion = [bundleversion cStringUsingEncoding:NSUTF8StringEncoding];
+
+	string strPath = [inputPath cStringUsingEncoding:NSUTF8StringEncoding];
+	string strOutputFile = [outputPath cStringUsingEncoding:NSUTF8StringEncoding];
+
+	if (!ZFile::IsFileExists(strPath.c_str())) {
+		ZLog::ErrorV(">>> Invalid path! %s\n", strPath.c_str());
+		if (completionHandler) {
+			completionHandler(NO, [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Invalid input path"}]);
+		}
+		return -1;
+	}
+	if (strOutputFile.empty()) {
+		ZLog::Error(">>> Output path is required.\n");
+		if (completionHandler) {
+			completionHandler(NO, [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Output path is required"}]);
+		}
+		return -1;
+	}
+
+	string strTempFolder = (tempFolder != nil && [tempFolder length] > 0)
+		? string([tempFolder cStringUsingEncoding:NSUTF8StringEncoding])
+		: ZFile::GetTempFolder();
+	if (!strTempFolder.empty() && !ZFile::IsFolder(strTempFolder.c_str())) {
+		ZLog::ErrorV(">>> Invalid temp folder! %s\n", strTempFolder.c_str());
+		if (completionHandler) {
+			completionHandler(NO, [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Invalid temp folder"}]);
+		}
+		return -1;
+	}
+
+	ZSignAsset zsa;
+	if (!zsa.Init(strCertFile, strPKeyFile, strProvFile, strEntitleFile, strPassword, bAdhoc, bSHA256Only, false)) {
+		if (completionHandler) {
+			completionHandler(NO, [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Failed to init certificate"}]);
+		}
+		return -1;
+	}
+
+	bool bZipFile = ZFile::IsZipFile(strPath.c_str());
+	bool bTempFolder = false;
+	bool bEnableCache = true;
+	string strFolder = strPath;
+
+	if (bZipFile) {
+		bForce = true;
+		bTempFolder = true;
+		bEnableCache = false;
+		strFolder = ZFile::GetRealPathV("%s/zsign_folder_%llu", strTempFolder.c_str(), ZUtil::GetMicroSecond());
+		ZLog::PrintV(">>> Unzip:\t%s (%s) ... \n", ZUtil::GetBaseName(strPath.c_str()), ZFile::GetFileSizeString(strPath.c_str()).c_str());
+		if (!Zip::Extract(strPath.c_str(), strFolder.c_str())) {
+			ZLog::ErrorV(">>> Unzip failed!\n");
+			if (completionHandler) {
+				completionHandler(NO, [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Unzip failed"}]);
+			}
+			return -1;
+		}
+		atimer.PrintResult(true, ">>> Unzip OK!");
+	}
+
+	atimer.Reset();
+	ZBundle bundle;
+	bundle.m_bRemoveUISupportedDevices = removeUISupportedDevices;
+	bundle.m_bRemoveWatchApp = removeWatchApp;
+	bundle.m_bEnableDocuments = enableDocuments;
+	bundle.m_strMinVersion = minOSVersion != nil ? string([minOSVersion UTF8String]) : string();
+	bundle.m_bRemoveExtensions = removeExtensions;
+
+	bool bRet = bundle.SignFolder(&zsa, strFolder, strBundleId, strBundleVersion, strDisplayName, arrDylibFiles, arrRemoveDylibNames, bForce, bWeakInject, bEnableCache, dontGenerateEmbeddedMobileProvision);
+	ZLog::PrintV(">>> Signing:\t%s %s\n", ZUtil::GetBaseName(strPath.c_str()), (bAdhoc ? " (Ad-hoc)" : ""));
+	atimer.PrintResult(bRet, ">>> Signed %s!", bRet ? "OK" : "Failed");
+
+	if (bRet && !strOutputFile.empty()) {
+		atimer.Reset();
+		ZLog::PrintV(">>> Archiving: \t%s ... \n", ZUtil::GetBaseName(strOutputFile.c_str()));
+		string strBaseFolder;
+		bool bNeedCleanPayload = false;
+		size_t pos = bundle.m_strAppFolder.rfind("Payload");
+		if (pos != string::npos && pos > 0) {
+			strBaseFolder = bundle.m_strAppFolder.substr(0, pos - 1);
+		} else {
+			string strPayloadRoot = ZFile::GetRealPathV("%s/zsign_payload_%llu", strTempFolder.c_str(), ZUtil::GetMicroSecond());
+			string strPayloadFolder = strPayloadRoot + "/Payload";
+			string strAppName = ZUtil::GetBaseName(bundle.m_strAppFolder.c_str());
+			NSString *srcApp = [NSString stringWithUTF8String:bundle.m_strAppFolder.c_str()];
+			NSString *destApp = [NSString stringWithUTF8String:(strPayloadFolder + "/" + strAppName).c_str()];
+			NSFileManager *fm = [NSFileManager defaultManager];
+			if (![fm createDirectoryAtPath:[NSString stringWithUTF8String:strPayloadFolder.c_str()] withIntermediateDirectories:YES attributes:nil error:nil]) {
+				ZLog::Error(">>> Failed to create Payload directory.\n");
+				bRet = false;
+			} else {
+				NSError *copyErr = nil;
+				if (![fm copyItemAtPath:srcApp toPath:destApp error:&copyErr]) {
+					ZLog::ErrorV(">>> Failed to copy app into Payload: %s\n", copyErr ? [[copyErr localizedDescription] UTF8String] : "unknown");
+					bRet = false;
+					ZFile::RemoveFolder(strPayloadRoot.c_str());
+				} else {
+					strBaseFolder = strPayloadRoot;
+					bNeedCleanPayload = true;
+				}
+			}
+		}
+		if (bRet && !strBaseFolder.empty()) {
+			if (!Zip::Archive(strBaseFolder, strOutputFile, nZipLevel)) {
+				ZLog::Error(">>> Archive failed!\n");
+				bRet = false;
+			} else {
+				atimer.PrintResult(true, ">>> Archive OK! (%s)", ZFile::GetFileSizeString(strOutputFile.c_str()).c_str());
+			}
+			if (bNeedCleanPayload) {
+				ZFile::RemoveFolder(strBaseFolder.c_str());
+			}
+		} else if (bRet) {
+			ZLog::Error(">>> Can't find payload directory!\n");
+			bRet = false;
+		}
+	}
+
+	if (bTempFolder) {
+		ZFile::RemoveFolder(strFolder.c_str());
+	}
+
+	NSError *signError = nil;
+	if (!bRet) {
+		signError = [NSError errorWithDomain:@"Failed to Sign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Signing or archiving failed."}];
 	}
 
 	if (completionHandler) {

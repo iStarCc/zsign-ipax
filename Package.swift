@@ -32,8 +32,6 @@ let package = Package(
 			],
 			path: "src",
 			exclude: [
-				"common/archive.cpp",
-				"common/archive_zip_progress.cpp",
 				"zsign.cpp",
 				"metadata.cpp",
 				"certcheck.cpp",
@@ -47,6 +45,8 @@ let package = Package(
 				"openssl_tools.mm",
 				"signing.cpp",
 				"zsign.mm",
+				"common/archive.cpp",
+				"common/archive_zip_progress.cpp",
 				"common/base64.cpp",
 				"common/fs.cpp",
 				"common/json.cpp",
@@ -64,6 +64,7 @@ let package = Package(
 			],
 			linkerSettings: [
 				.linkedFramework("OpenSSL"),
+				.linkedLibrary("z"),
 			]
 		),
 		.target(

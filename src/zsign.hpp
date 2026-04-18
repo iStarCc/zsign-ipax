@@ -43,6 +43,30 @@ int zsign(
 	void (^ _Nullable completionHandler)(BOOL success, NSError * _Nullable error)
 );
 
+/// 签名并输出 IPA：支持输入 `.ipa`（先解压）或 `.app`，使用 minizip 打包；压缩过程会通过 `ZLog` 输出进度（如「压缩中: n/m」），经 `zlog_i18n`/`ZSIGN_LANG` 本地化。
+int zsignIPA(
+	NSString *inputPath,
+	NSString *outputPath,
+	NSString *prov,
+	NSString *key,
+	NSString *pass,
+	NSString *entitlement,
+	NSString *bundleid,
+	NSString *displayname,
+	NSString *bundleversion,
+	bool adhoc,
+	bool dontGenerateEmbeddedMobileProvision,
+	bool removeUISupportedDevices,
+	bool removeWatchApp,
+	bool enableDocuments,
+	NSString * _Nullable minOSVersion,
+	bool removeExtensions,
+	int zipLevel,
+	NSString * _Nullable tempFolder,
+	bool zh,
+	void (^ _Nullable completionHandler)(BOOL success, NSError * _Nullable error)
+);
+
 int checkCert(
 	NSString *prov,
 	NSString *key,
