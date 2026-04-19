@@ -7,6 +7,8 @@ class Zip
 public:
 	
 	static bool Archive(const string& strFolder, const string& strZipFile, int nZipLevel);
+	/** 仅将 `…/Payload` 目录树打入 zip，条目前缀恒为 `Payload/…`（不把 Payload 的同级其它文件打进 IPA）。 */
+	static bool ArchivePayloadFolderForIPA(const string& strPayloadFolder, const string& strZipFile, int nZipLevel);
 	static bool Extract(const char* zip_file, const char* output_folder);
 
 private:

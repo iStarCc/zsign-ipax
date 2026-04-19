@@ -555,14 +555,13 @@ int zsignArchiveFolderToIPA(
 		return -1;
 	}
 
-	NSString *ipaRoot = [standardized stringByDeletingLastPathComponent];
-
-	string strRoot = [ipaRoot UTF8String];
+	// 只打包 Payload 目录树，条目前缀为 Payload/…；勿使用 Payload 父目录作为 zip 根，否则会打进同级其它文件（如已解压的 .ipa、元数据等）。
+	string strPayloadFolder = [standardized UTF8String];
 	string strOutput = [outputPath UTF8String];
 
 	atimer.Reset();
 	ZLog::PrintV(">>> Archiving: \t%s ... \n", ZUtil::GetBaseName(strOutput.c_str()));
-	bool bRet = Zip::Archive(strRoot, strOutput, nZipLevel);
+	bool bRet = Zip::ArchivePayloadFolderForIPA(strPayloadFolder, strOutput, nZipLevel);
 	if (!bRet) {
 		ZLog::Error(">>> Archive failed!\n");
 	} else {

@@ -165,6 +165,60 @@ bool Zip::Archive(const string& strFolder, const string& strZipFile, int nZipLev
 	return bRet;
 }
 
+bool Zip::ArchivePayloadFolderForIPA(const string& strPayloadFolder, const string& strZipFile, int nZipLevel)
+{
+	if (nZipLevel < 0 || nZipLevel > 9) {
+		ZLog::ErrorV(">>> Zip: Invalid compression level: %d\n", nZipLevel);
+		return false;
+	}
+
+	zipFile zf = zipOpen64(strZipFile.c_str(), 0);
+	if (!zf) {
+		ZLog::ErrorV(">>> Zip: Failed to create zip file: %s\n", strZipFile.c_str());
+		return false;
+	}
+
+	string strFolder = strPayloadFolder;
+	while (!strFolder.empty() && (strFolder.back() == '/' || strFolder.back() == '\\')) {
+		strFolder.pop_back();
+	}
+
+	const size_t nTotalEntries = ZipArchiveEntryCount(strFolder);
+	int nDone = 0;
+
+	bool bRet = true;
+	ZFile::EnumFolder(strFolder.c_str(), true, NULL, [&](bool bFolder, const string& strPath) {
+		string strRelativePath = strPath.substr(strFolder.size() + 1);
+		ZUtil::StringReplace(strRelativePath, "\\", "/");
+		strRelativePath = "Payload/" + strRelativePath;
+
+#ifdef _WIN32
+		iconv ic;
+		strRelativePath = ic.A2U8(strRelativePath);
+#endif
+
+		if (bFolder) {
+			strRelativePath += "/";
+			if (!_CreateFolderToZip(zf, strPath, strRelativePath, nZipLevel)) {
+				bRet = false;
+				return true;
+			}
+		} else {
+			if (!_WriteFileToZip(zf, strPath, strRelativePath, nZipLevel)) {
+				bRet = false;
+				return true;
+			}
+		}
+		nDone++;
+		if (nTotalEntries > 0)
+			ZipLogCompressProgress(nDone, (int)nTotalEntries, strRelativePath);
+		return false;
+	});
+
+	zipClose(zf, NULL);
+	return bRet;
+}
+
 bool Zip::_EnumZipItems(const char* zip_file, enum_zip_items_callback callback)
 {
 	unzFile uf = unzOpen64(zip_file);
