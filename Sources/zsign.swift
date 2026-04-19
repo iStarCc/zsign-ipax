@@ -209,6 +209,46 @@ public enum Zsign {
 		return true
 	}
 
+	/// 将 `Payload` 目录打包为 `.ipa`（仅压缩，不签名）。`folderPath` **必须**指向名为 `Payload` 的文件夹；**只检查其直接子项**（不遍历子文件夹），须有且仅有一个 `.app` bundle（即 `Payload/xxx.app`）；与 `signIPA` 最终归档阶段相同（含压缩进度日志、UTF-8 文件名）。
+	/// - Parameters:
+	///   - zipLevel: ZIP 级别 0–9，默认 6。
+	///   - zh: 为本次调用设置 `ZSIGN_LANG=zh`，使压缩进度等日志为中文。
+	static public func archiveFolderToIPA(
+		folderPath: String,
+		outputPath: String,
+		zipLevel: Int = 6,
+		zh: Bool = false,
+		logHandler: ((String) -> Void)? = nil,
+		completion: ((Bool, Error?) -> Void)? = nil
+	) -> Bool {
+		if let logHandler {
+			ZsignSetLogHandler { (line: String?) in
+				guard let line else { return }
+				logHandler(line)
+			}
+		}
+		defer {
+			if logHandler != nil {
+				ZsignSetLogHandler(nil)
+			}
+		}
+		let zl = min(max(zipLevel, 0), 9)
+		if zsignArchiveFolderToIPA(
+			folderPath,
+			outputPath,
+			Int32(zl),
+			zh,
+			completion.map { callback in
+				{ success, error in
+					callback(success, error)
+				}
+			}
+		) != 0 {
+			return false
+		}
+		return true
+	}
+
 	/// Check revokage
 	/// - Parameters:
 	///   - provisionPath: Relative path to a provisioning file (i.e. `samara.mobileprovision`)

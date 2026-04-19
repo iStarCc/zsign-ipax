@@ -47,6 +47,8 @@ targets: [
 | `listDylibs(appExecutable:)` | 列出 load command 中的 dylib 路径。 |
 | `changeDylibPath(appExecutable:for:with:)` | 将某一 dylib 安装名替换为另一个（受 Mach-O 槽位长度等限制，与上游行为一致）。 |
 | `sign(...)` | 对 **`.app` 目录（bundle）** 进行签名。可选：`removeUISupportedDevices`（`-U`）、`removeWatchApp`（`-W`）、`enableDocuments`（`-S`）、`minOSVersion`（`-M`）、`removeExtensions`（`-E`）、`zh`、`logHandler`（仅本轮签名期间的实时日志）。 |
+| `signIPA(...)` | **签名并输出 IPA**：输入可为已有 `.ipa`（内部先解压）或 **`.app` 目录**；输出为新的 `.ipa`。底层 minizip，与命令行 `-o` 思路一致；支持 `zipLevel`、`tempFolderPath`、`zh`、`logHandler`；ZIP 内文件名为 UTF-8。 |
+| `archiveFolderToIPA(...)` | **仅压缩、不签名**：`folderPath` **必须**为 **`Payload`** 目录；**只检查 Payload 下一级**（不递归子文件夹），其中须有且仅有一个 **`.app`**（即 `Payload/xxx.app`）。 |
 | `setLogHandler(_:)` | 注册全局实时日志回调（每条 `ZLog` 一行）；传 `nil` 取消。 |
 | `checkRevokage(...)` | 证书 OCSP 相关检查（异步回调），见下文。 |
 
@@ -104,6 +106,43 @@ let success = Zsign.sign(
 _ = Zsign.sign(appPath: "/path/to/My.app", adhoc: true)
 ```
 
+### 签名并导出 IPA（`signIPA`）
+
+输入可为 **`.app` 目录**或已有 **`.ipa`**（会先解压再签名、再打包）。`outputPath` 为目标 `.ipa` 路径。
+
+```swift
+_ = Zsign.signIPA(
+    inputPath: "/path/to/My.app",           // 或 "/path/to/existing.ipa"
+    outputPath: "/path/to/out.ipa",
+    provisionPath: "/path/to/profile.mobileprovision",
+    p12Path: "/path/to/key.p12",
+    p12Password: "密码",
+    zipLevel: 6,
+    tempFolderPath: "",                    // 空则使用系统临时目录
+    zh: true,
+    logHandler: { line in print(line, terminator: "") }
+) { success, error in
+    if !success { print(error?.localizedDescription ?? "失败") }
+}
+```
+
+### 仅将 Payload 目录树打成 IPA（`archiveFolderToIPA`）
+
+在已具备 **`…/Payload/xxx.app/…`**、**不需要再签名**时，只生成 `.ipa` 压缩包。
+
+- **`folderPath` 必须指向 `Payload` 目录本身**（不能传其父目录）；**只统计直接子项**（不遍历子目录），其中须有且仅有一个 **`.app`**（若 `.app` 在子文件夹内则不会被计入）。
+
+```swift
+_ = Zsign.archiveFolderToIPA(
+    folderPath: "/path/to/staging/Payload", // 名为 Payload 的文件夹，内含 Your.app
+    outputPath: "/path/to/out.ipa",
+    zipLevel: 6,
+    zh: true
+) { success, error in
+    if !success { print(error?.localizedDescription ?? "失败") }
+}
+```
+
 ### 实时日志
 
 每条 `ZLog` 在经 `zlog_i18n` 处理后除写入标准输出（并已 `fflush`，行为接近 `swift-old`）外，可通过回调在 Swift 侧实时接收（UTF-8 文本一行）：
@@ -151,7 +190,7 @@ swift build
 ## 说明与限制
 
 - 所有操作针对**磁盘上的文件**；请确保应用具备读写相应路径的权限（沙盒、企业分发场景等需自行处理）。
-- 本库目标**不包含**命令行版中的 IPA 解压/压缩、元数据导出等仅 CLI 使用的功能（见 `Package.swift` 中的 `exclude`）。
+- 本 SPM 目标**排除**命令行入口 `zsign.cpp` 以及 `metadata.cpp`、`certcheck.cpp` 等；**IPA 打包/重打包**仍通过 `signIPA`、`archiveFolderToIPA` 与 minizip 提供，详见 `Package.swift` 中的 `sources` 与 `exclude`。
 - 英文说明见 [README.md](./README.md)。
 
 ## 许可

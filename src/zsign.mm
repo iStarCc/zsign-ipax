@@ -470,6 +470,118 @@ int zsignIPA(
 	return bRet ? 0 : -1;
 }
 
+int zsignArchiveFolderToIPA(
+	NSString *folderPath,
+	NSString *outputPath,
+	int zipLevel,
+	bool zh,
+	void (^ _Nullable completionHandler)(BOOL success, NSError * _Nullable error)
+) {
+	ZsignLangScope langScope(zh);
+
+	ZTimer atimer;
+	ZTimer gtimer;
+
+	int nZipLevel = (zipLevel >= 0 && zipLevel <= 9) ? zipLevel : 6;
+
+	if (!folderPath || [folderPath length] == 0) {
+		ZLog::Error(">>> Archive: folder path is required.\n");
+		if (completionHandler) {
+			completionHandler(NO, [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Folder path is required"}]);
+		}
+		return -1;
+	}
+	if (!outputPath || [outputPath length] == 0) {
+		ZLog::Error(">>> Archive: output path is required.\n");
+		if (completionHandler) {
+			completionHandler(NO, [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Output path is required"}]);
+		}
+		return -1;
+	}
+
+	NSString *standardized = [folderPath stringByStandardizingPath];
+	BOOL isDir = NO;
+	NSFileManager *fm = [NSFileManager defaultManager];
+	if (![fm fileExistsAtPath:standardized isDirectory:&isDir] || !isDir) {
+		ZLog::ErrorV(">>> Archive: invalid folder: %s\n", [standardized UTF8String]);
+		if (completionHandler) {
+			completionHandler(NO, [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Invalid folder path"}]);
+		}
+		return -1;
+	}
+
+	if ([[standardized lastPathComponent] compare:@"Payload" options:NSCaseInsensitiveSearch] != NSOrderedSame) {
+		ZLog::Error(">>> Archive: path must be the Payload directory (…/Payload).\n");
+		if (completionHandler) {
+			completionHandler(NO, [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Path must be the Payload directory (ending with /Payload)"}]);
+		}
+		return -1;
+	}
+
+	NSError *enumErr = nil;
+	/* 仅枚举 Payload 下一级条目（不递归子文件夹）；与「仅允许 Payload/xxx.app」约定一致。 */
+	NSArray<NSString *> *contents = [fm contentsOfDirectoryAtPath:standardized error:&enumErr];
+	if (!contents) {
+		ZLog::ErrorV(">>> Archive: cannot list Payload: %s\n", enumErr ? [[enumErr localizedDescription] UTF8String] : "unknown");
+		if (completionHandler) {
+			completionHandler(NO, [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Cannot read Payload directory"}]);
+		}
+		return -1;
+	}
+
+	NSUInteger appCount = 0;
+	for (NSString *name in contents) {
+		if ([[name pathExtension] compare:@"app" options:NSCaseInsensitiveSearch] != NSOrderedSame) {
+			continue;
+		}
+		NSString *full = [standardized stringByAppendingPathComponent:name];
+		isDir = NO;
+		if ([fm fileExistsAtPath:full isDirectory:&isDir] && isDir) {
+			appCount++;
+		}
+	}
+	if (appCount == 0) {
+		ZLog::Error(">>> Archive: Payload must contain exactly one .app bundle (none found).\n");
+		if (completionHandler) {
+			completionHandler(NO, [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Payload must contain exactly one .app bundle (none found)"}]);
+		}
+		return -1;
+	}
+	if (appCount > 1) {
+		ZLog::Error(">>> Archive: Payload must contain exactly one .app bundle (multiple .app found).\n");
+		if (completionHandler) {
+			completionHandler(NO, [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Payload must contain exactly one .app bundle (multiple found)"}]);
+		}
+		return -1;
+	}
+
+	NSString *ipaRoot = [standardized stringByDeletingLastPathComponent];
+
+	string strRoot = [ipaRoot UTF8String];
+	string strOutput = [outputPath UTF8String];
+
+	atimer.Reset();
+	ZLog::PrintV(">>> Archiving: \t%s ... \n", ZUtil::GetBaseName(strOutput.c_str()));
+	bool bRet = Zip::Archive(strRoot, strOutput, nZipLevel);
+	if (!bRet) {
+		ZLog::Error(">>> Archive failed!\n");
+	} else {
+		atimer.PrintResult(true, ">>> Archive OK! (%s)", ZFile::GetFileSizeString(strOutput.c_str()).c_str());
+	}
+
+	NSError *archiveError = nil;
+	if (!bRet) {
+		archiveError = [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Archive failed"}];
+	}
+
+	if (completionHandler) {
+		completionHandler(bRet, archiveError);
+	}
+
+	gtimer.Print(">>> Done.");
+	return bRet ? 0 : -1;
+}
+
 
 int checkCert(
 	NSString *prov,

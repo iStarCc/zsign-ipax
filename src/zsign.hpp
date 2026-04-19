@@ -67,6 +67,15 @@ int zsignIPA(
 	void (^ _Nullable completionHandler)(BOOL success, NSError * _Nullable error)
 );
 
+/// 将 `Payload` 目录打包为 `.ipa`（仅压缩，不签名）。`folderPath` **必须**为名为 `Payload` 的目录；**仅看 Payload 下一级**（不递归子目录），须有且仅有一个 `*.app` bundle（即 `Payload/xxx.app`）；压缩逻辑与 `zsignIPA` 最终阶段一致（`Zip::Archive` + UTF-8 文件名）。
+int zsignArchiveFolderToIPA(
+	NSString *folderPath,
+	NSString *outputPath,
+	int zipLevel,
+	bool zh,
+	void (^ _Nullable completionHandler)(BOOL success, NSError * _Nullable error)
+);
+
 int checkCert(
 	NSString *prov,
 	NSString *key,

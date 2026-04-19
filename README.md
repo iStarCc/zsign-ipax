@@ -49,6 +49,8 @@ All APIs are on `public enum Zsign` (static methods). Paths are **filesystem pat
 | `listDylibs(appExecutable:)` | Lists dylib paths from load commands. |
 | `changeDylibPath(appExecutable:for:with:)` | Replaces one dylib install name with another (in-place, same slot size constraints as upstream). |
 | `sign(...)` | Signs an **`.app` bundle** (folder path). Matches CLI flags: `removeUISupportedDevices` (`-U`), `removeWatchApp` (`-W`), `enableDocuments` (`-S`), `minOSVersion` (`-M`), `removeExtensions` (`-E`). Set `zh: true` for Chinese `ZLog` output during the call (via `ZSIGN_LANG`). Optional `logHandler` installs a **real-time** log sink for that call only. |
+| `signIPA(...)` | Signs and writes an **`.ipa`**: input may be an existing `.ipa` (extracted internally) or an **`.app` folder**; output path is the new `.ipa`. Uses minizip (same idea as CLI `-o`), UTF-8 entry names, optional `zipLevel` (0–9), `tempFolderPath`, `zh`, `logHandler`. |
+| `archiveFolderToIPA(...)` | **Zip-only**: `folderPath` must be the **`Payload` directory** (path ends with `/Payload`). Only **immediate children** of `Payload` are checked (no recursion); among those there must be **exactly one** **`*.app` bundle** (`Payload/xxx.app`). No signing. Same compression logging as `signIPA`. |
 | `setLogHandler(_:)` | Registers a **real-time** callback for every `ZLog` line (UTF-8, after i18n); pass `nil` to clear. |
 | `checkRevokage(...)` | OCSP-style certificate check (async); see below. |
 
@@ -106,6 +108,43 @@ Ad-hoc signing (no identity):
 _ = Zsign.sign(appPath: "/path/to/My.app", adhoc: true)
 ```
 
+### Sign and output an IPA (`signIPA`)
+
+Input can be a `.app` directory or an existing `.ipa` (it will be unzipped, signed, and repacked). Output must be the destination `.ipa` path.
+
+```swift
+_ = Zsign.signIPA(
+    inputPath: "/path/to/My.app",           // or "/path/to/existing.ipa"
+    outputPath: "/path/to/out.ipa",
+    provisionPath: "/path/to/profile.mobileprovision",
+    p12Path: "/path/to/key.p12",
+    p12Password: "secret",
+    zipLevel: 6,
+    tempFolderPath: "",                    // empty = system temp
+    zh: false,
+    logHandler: { line in print(line, terminator: "") }
+) { success, error in
+    if !success { print(error?.localizedDescription ?? "failed") }
+}
+```
+
+### Pack a Payload tree into an IPA (`archiveFolderToIPA`)
+
+Use when you already have **`…/Payload/Your.app/…`** and only need a `.ipa` zip—**no signing**.
+
+- **`folderPath` must be the `Payload` folder itself** (not its parent). Only **top-level entries** under `Payload` are considered (nested paths like `Payload/A/B.app` are **not** scanned). There must be **exactly one** **`.app`** among those immediate children.
+
+```swift
+_ = Zsign.archiveFolderToIPA(
+    folderPath: "/path/to/staging/Payload", // directory named Payload, containing Your.app
+    outputPath: "/path/to/out.ipa",
+    zipLevel: 6,
+    zh: false
+) { success, error in
+    if !success { print(error?.localizedDescription ?? "failed") }
+}
+```
+
 ### Real-time log output
 
 Each `ZLog` line (after `zlog_i18n`, respecting `zh` / `LANG` / `ZSIGN_LANG`) is also written to **stdout** with `fflush` (similar to `swift-old`). To stream logs into Swift (e.g. a text view), use a handler:
@@ -153,7 +192,7 @@ To build for a specific Apple platform, use `xcodebuild` or open a generated Xco
 ## Notes
 
 - Signing and Mach-O editing operate on **on-disk files**; ensure your app has appropriate sandbox / entitlement access to those paths.
-- The core is shared with the **command-line zsign** tree; CLI-only features (IPA zip/unzip, metadata export, etc.) are **not** compiled into this library target—see the `exclude` list in `Package.swift`.
+- The core is shared with the **command-line zsign** tree. This SPM target **excludes** the CLI entrypoint (`zsign.cpp`) and tools such as `metadata.cpp` / `certcheck.cpp`; **IPA create/repack** is still provided via `signIPA` / `archiveFolderToIPA` and minizip—see `Package.swift` sources.
 - For details on the underlying project, see the main repository README and [README.zh-CN.md](./README.zh-CN.md).
 
 ## License
