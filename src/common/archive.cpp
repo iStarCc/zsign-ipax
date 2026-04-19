@@ -4,6 +4,9 @@
 #include "third-party/minizip/zip.h"
 #include "third-party/minizip/unzip.h"
 
+/** ZIP 通用位标志 bit 11：文件名与注释使用 UTF-8（APPNOTE / Info-ZIP）。 */
+static const uLong kZipGeneralPurposeFlagUTF8 = 0x800u;
+
 void Zip::GetModificationTime(const char* path, void* zfi)
 {
 	zip_fileinfo* zi = (zip_fileinfo*)zfi;
@@ -58,7 +61,7 @@ bool Zip::_WriteFileToZip(void* hZip, const string& strFile, const string& strRe
 
 	zip_fileinfo zi = { 0 };
 	GetModificationTime(strFile.c_str(), &zi);
-	if (ZIP_OK != zipOpenNewFileInZip3_64(hZip, strRelativePath.c_str(), &zi, NULL, 0, NULL, 0, NULL, Z_DEFLATED, zip_level, 0, -MAX_WBITS, DEF_MEM_LEVEL, 0, NULL, 0, 0)) {
+	if (ZIP_OK != zipOpenNewFileInZip4_64(hZip, strRelativePath.c_str(), &zi, NULL, 0, NULL, 0, NULL, Z_DEFLATED, zip_level, 0, -MAX_WBITS, DEF_MEM_LEVEL, 0, NULL, 0, 0, kZipGeneralPurposeFlagUTF8, 0)) {
 		fclose(fp);
 		ZLog::ErrorV(">>> Zip: Failed to add file to zip: %s\n", strRelativePath.c_str());
 		return false;
@@ -106,7 +109,7 @@ bool Zip::_CreateFolderToZip(void* hZip, const string& strFolder, const string& 
 {
 	zip_fileinfo zi = { 0 };
 	GetModificationTime(strFolder.c_str(), &zi);
-	if (ZIP_OK != zipOpenNewFileInZip3_64(hZip, strRelativePath.c_str(), &zi, NULL, 0, NULL, 0, NULL, Z_DEFLATED, zip_level, 0, -MAX_WBITS, DEF_MEM_LEVEL, 0, NULL, 0, 0)) {
+	if (ZIP_OK != zipOpenNewFileInZip4_64(hZip, strRelativePath.c_str(), &zi, NULL, 0, NULL, 0, NULL, Z_DEFLATED, zip_level, 0, -MAX_WBITS, DEF_MEM_LEVEL, 0, NULL, 0, 0, kZipGeneralPurposeFlagUTF8, 0)) {
 		ZLog::ErrorV(">>> Zip: Failed to create folder to zip: %s\n", strRelativePath.c_str());
 		return false;
 	}
