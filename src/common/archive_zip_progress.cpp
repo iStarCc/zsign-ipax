@@ -30,39 +30,57 @@ size_t ZipArchiveEntryCount(const string& strFolder)
 	return n;
 }
 
-void ZipLogCompressProgress(int current, int total, const string& strRelativePath)
+/** entriesCompletedBefore：已完成条目数；大文件心跳时指当前文件之前的条目数。isPartialForCurrentFile：正在写入当前文件（按 MB 比例计入总进度）。 */
+void ZipLogCompressUnified(
+	int entriesCompletedBefore,
+	int entryTotal,
+	const string& strRelativePath,
+	uint64_t fileDoneMb,
+	uint64_t fileTotalMb,
+	bool isPartialForCurrentFile)
 {
-	int pct = 0;
-	if (total > 0)
-		pct = (int)((100LL * current) / total);
-	string nameForLog = strRelativePath;
-	while (!nameForLog.empty() && (nameForLog.back() == '/' || nameForLog.back() == '\\')) {
-		nameForLog.pop_back();
-	}
-	string pathCopy = nameForLog;
-	const char* base = pathCopy.empty() ? "" : ZUtil::GetBaseName(pathCopy.c_str());
-	if (EnvPreferChinese())
-		ZLog::PrintV("压缩中: %d/%d (%d%%) : %s\n", current, total, pct, base);
-	else
-		ZLog::PrintV("Compressing: %d/%d (%d%%) : %s\n", current, total, pct, base);
-}
-
-void ZipLogLargeFileCompressProgress(const string& strRelativePath, uint64_t bytesDone, uint64_t bytesTotal)
-{
-	if (bytesTotal == 0 || bytesDone > bytesTotal) {
+	if (entryTotal <= 0)
 		return;
-	}
-	string pathCopy = strRelativePath;
-	const char* base = ZUtil::GetBaseName(pathCopy.c_str());
-	uint64_t doneMb = bytesDone / (1024ULL * 1024ULL);
-	uint64_t totalMb = bytesTotal / (1024ULL * 1024ULL);
-	if (totalMb < 1) {
-		totalMb = 1;
-	}
-	int pct = (int)((100ULL * bytesDone) / bytesTotal);
-	if (EnvPreferChinese()) {
-		ZLog::PrintV("压缩中(大文件): %s %llu/%llu MB (%d%%)\n", base, (unsigned long long)doneMb, (unsigned long long)totalMb, pct);
+
+	const double w = 100.0 / (double)entryTotal;
+	double overallD;
+	if (isPartialForCurrentFile) {
+		const double denom = (fileTotalMb > 0) ? (double)fileTotalMb : 1.0;
+		const double frac = (double)fileDoneMb / denom;
+		overallD = (double)entriesCompletedBefore * w + frac * w;
 	} else {
-		ZLog::PrintV("Compressing (large file): %s %llu/%llu MB (%d%%)\n", base, (unsigned long long)doneMb, (unsigned long long)totalMb, pct);
+		overallD = (double)entriesCompletedBefore * w;
+	}
+	int overall = (int)(overallD + 0.5);
+	if (overall < 0)
+		overall = 0;
+	if (overall > 100)
+		overall = 100;
+
+	const int displayEntry = isPartialForCurrentFile ? (entriesCompletedBefore + 1) : entriesCompletedBefore;
+
+	string pathCopy = strRelativePath;
+	while (!pathCopy.empty() && (pathCopy.back() == '/' || pathCopy.back() == '\\')) {
+		pathCopy.pop_back();
+	}
+	const char* base = pathCopy.empty() ? "" : ZUtil::GetBaseName(pathCopy.c_str());
+
+	/* 单行：条目进度 + 当前文件 MB + 总百分比，便于 Swift 解析；basename 夹在中间避免整行被长文件名占满 */
+	if (EnvPreferChinese()) {
+		ZLog::PrintV("压缩文件（%d/%d）： %s（%llu/%llu MB）总计（%d%%）\n",
+			displayEntry,
+			entryTotal,
+			base,
+			(unsigned long long)fileDoneMb,
+			(unsigned long long)fileTotalMb,
+			overall);
+	} else {
+		ZLog::PrintV("Compressing files (%d/%d): %s (%llu/%llu MB) overall (%d%%)\n",
+			displayEntry,
+			entryTotal,
+			base,
+			(unsigned long long)fileDoneMb,
+			(unsigned long long)fileTotalMb,
+			overall);
 	}
 }

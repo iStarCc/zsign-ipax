@@ -18,7 +18,7 @@ private:
 	static bool _EnumZipItems(const char* zip_file, enum_zip_items_callback callback);
 	static bool _ReadFileFromZip(void* hZip, const string& strPath, const string& strRootFolder);
 	static bool _Extract(const char* zip_file, const char* output_folder);
-	static bool _WriteFileToZip(void* hZip, const string& strFile, const string& strRootFolder, int zip_level);
+	static bool _WriteFileToZip(void* hZip, const string& strFile, const string& strRelativePath, int zip_level, int completedEntriesBefore, int entryTotal);
 	static bool _CreateFolderToZip(void* hZip, const string& strFolder, const string& strRootFolder, int zip_level);
 	static void GetModificationTime(const char* path, void* zi);
 };

@@ -4,6 +4,29 @@
 #include "third-party/minizip/zip.h"
 #include "third-party/minizip/unzip.h"
 
+#include <sys/stat.h>
+
+#if !defined(S_ISREG) && defined(S_IFMT) && defined(S_IFREG)
+#define S_ISREG(m) (((m)&S_IFMT) == S_IFREG)
+#endif
+
+static void zipStatFileMb(const string& strFullPath, uint64_t* outDoneMb, uint64_t* outTotalMb)
+{
+	struct stat st = { 0 };
+	*outDoneMb = 0;
+	*outTotalMb = 0;
+	if (0 != stat(strFullPath.c_str(), &st))
+		return;
+	if (!S_ISREG(st.st_mode))
+		return;
+	uint64_t sz = (uint64_t)st.st_size;
+	uint64_t mb = sz / (1024ULL * 1024ULL);
+	if (sz > 0 && mb < 1)
+		mb = 1;
+	*outDoneMb = mb;
+	*outTotalMb = mb;
+}
+
 /** ZIP 通用位标志 bit 11：文件名与注释使用 UTF-8（APPNOTE / Info-ZIP）。 */
 static const uLong kZipGeneralPurposeFlagUTF8 = 0x800u;
 
@@ -35,7 +58,7 @@ void Zip::GetModificationTime(const char* path, void* zfi)
 	}
 }
 
-bool Zip::_WriteFileToZip(void* hZip, const string& strFile, const string& strRelativePath, int zip_level)
+bool Zip::_WriteFileToZip(void* hZip, const string& strFile, const string& strRelativePath, int zip_level, int completedEntriesBefore, int entryTotal)
 {
 	FILE* fp = NULL;
 	_fopen64(fp, strFile.c_str(), "rb");
@@ -85,14 +108,18 @@ bool Zip::_WriteFileToZip(void* hZip, const string& strFile, const string& strRe
 		}
 		written_total += (uint64_t)bytes_read;
 		if (uFileSize >= kLargeFileThreshold) {
+			uint64_t totalMb = uFileSize / (1024ULL * 1024ULL);
+			if (uFileSize > 0 && totalMb < 1)
+				totalMb = 1;
+			uint64_t doneMb = written_total / (1024ULL * 1024ULL);
 			if (!bDidFirstPulse && written_total >= kFirstPulseBytes) {
-				ZipLogLargeFileCompressProgress(strRelativePath, written_total, uFileSize);
+				ZipLogCompressUnified(completedEntriesBefore, entryTotal, strRelativePath, doneMb, totalMb, true);
 				bDidFirstPulse = true;
 				since_heartbeat = 0;
 			} else {
 				since_heartbeat += (uint64_t)bytes_read;
 				if (since_heartbeat >= kHeartbeatBytes) {
-					ZipLogLargeFileCompressProgress(strRelativePath, written_total, uFileSize);
+					ZipLogCompressUnified(completedEntriesBefore, entryTotal, strRelativePath, doneMb, totalMb, true);
 					since_heartbeat = 0;
 				}
 			}
@@ -149,15 +176,20 @@ bool Zip::Archive(const string& strFolder, const string& strZipFile, int nZipLev
 				bRet = false;
 				return true;
 			}
+			nDone++;
+			if (nTotalEntries > 0)
+				ZipLogCompressUnified(nDone, (int)nTotalEntries, strRelativePath, 0, 0, false);
 		} else {
-			if (!_WriteFileToZip(zf, strPath, strRelativePath, nZipLevel)) {
+			if (!_WriteFileToZip(zf, strPath, strRelativePath, nZipLevel, nDone, (int)nTotalEntries)) {
 				bRet = false;
 				return true;
 			}
+			nDone++;
+			uint64_t dmb = 0, tmb = 0;
+			zipStatFileMb(strPath, &dmb, &tmb);
+			if (nTotalEntries > 0)
+				ZipLogCompressUnified(nDone, (int)nTotalEntries, strRelativePath, dmb, tmb, false);
 		}
-		nDone++;
-		if (nTotalEntries > 0)
-			ZipLogCompressProgress(nDone, (int)nTotalEntries, strRelativePath);
 		return false;
 	});
 
@@ -203,15 +235,20 @@ bool Zip::ArchivePayloadFolderForIPA(const string& strPayloadFolder, const strin
 				bRet = false;
 				return true;
 			}
+			nDone++;
+			if (nTotalEntries > 0)
+				ZipLogCompressUnified(nDone, (int)nTotalEntries, strRelativePath, 0, 0, false);
 		} else {
-			if (!_WriteFileToZip(zf, strPath, strRelativePath, nZipLevel)) {
+			if (!_WriteFileToZip(zf, strPath, strRelativePath, nZipLevel, nDone, (int)nTotalEntries)) {
 				bRet = false;
 				return true;
 			}
+			nDone++;
+			uint64_t dmb = 0, tmb = 0;
+			zipStatFileMb(strPath, &dmb, &tmb);
+			if (nTotalEntries > 0)
+				ZipLogCompressUnified(nDone, (int)nTotalEntries, strRelativePath, dmb, tmb, false);
 		}
-		nDone++;
-		if (nTotalEntries > 0)
-			ZipLogCompressProgress(nDone, (int)nTotalEntries, strRelativePath);
 		return false;
 	});
 
