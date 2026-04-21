@@ -49,6 +49,7 @@ targets: [
 | `sign(...)` | 对 **`.app` 目录（bundle）** 进行签名。可选：`removeUISupportedDevices`（`-U`）、`removeWatchApp`（`-W`）、`enableDocuments`（`-S`）、`minOSVersion`（`-M`）、`removeExtensions`（`-E`）、`zh`、`logHandler`（仅本轮签名期间的实时日志）。 |
 | `signIPA(...)` | **签名并输出 IPA**：输入可为已有 `.ipa`（内部先解压）或 **`.app` 目录**；输出为新的 `.ipa`。底层 minizip，与命令行 `-o` 思路一致；支持 `zipLevel`、`tempFolderPath`、`zh`、`logHandler`；ZIP 内文件名为 UTF-8。 |
 | `archiveFolderToIPA(...)` | **仅压缩、不签名**：`folderPath` **必须**为 **`Payload`** 目录；**只检查 Payload 下一级**（不递归子文件夹），其中须有且仅有一个 **`.app`**（即 `Payload/xxx.app`）。 |
+| `extractIPA(...)` | **仅解压、不签名**：将 **`.ipa`**（或任意 ZIP）解压到**目录**；与 `signIPA` 内部解压相同的路径安全规则；日志含 `>>> Unzip:` 及与压缩阶段**同格式**的条目进度（`Extracting files` / `解压文件`、大文件心跳），UTF-8。可选 `zh`、`logHandler`、`completion`。 |
 | `setLogHandler(_:)` | 注册全局实时日志回调（每条 `ZLog` 一行）；传 `nil` 取消。 |
 | `checkRevokage(...)` | 证书 OCSP 相关检查（异步回调），见下文。 |
 
@@ -138,6 +139,21 @@ _ = Zsign.archiveFolderToIPA(
     outputPath: "/path/to/out.ipa",
     zipLevel: 6,
     zh: true
+) { success, error in
+    if !success { print(error?.localizedDescription ?? "失败") }
+}
+```
+
+### 仅解压 IPA（`extractIPA`）
+
+仅需把 **`.ipa`**（或其它 ZIP）展开到目录、**不做签名**时使用。若目标目录已存在会先删除再解压（与 `signIPA` 内部解压一致）。解压过程中的进度行与 **`signIPA` / `archiveFolderToIPA` 的压缩日志**格式一致（条目序号、basename、MB、总百分比；大文件有心跳）。
+
+```swift
+_ = Zsign.extractIPA(
+    ipaPath: "/path/to/App.ipa",
+    outputFolderPath: "/path/to/extracted",
+    zh: true,
+    logHandler: { line in print(line, terminator: "") }
 ) { success, error in
     if !success { print(error?.localizedDescription ?? "失败") }
 }

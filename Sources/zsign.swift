@@ -249,6 +249,41 @@ public enum Zsign {
 		return true
 	}
 
+	/// 将 `.ipa`（或任意 ZIP）解压到目录；与 `signIPA` 解压阶段相同的安全路径规则。解压过程中 `ZLog` 会输出与压缩阶段同格式的条目进度（`Extracting files` / `解压文件`）及大文件心跳；若传入 `logHandler` 可收到这些行（UTF-8）。
+	/// - Parameter zh: 为本次调用设置 `ZSIGN_LANG=zh`，使进度等日志为中文（结束后恢复）。
+	static public func extractIPA(
+		ipaPath: String,
+		outputFolderPath: String,
+		zh: Bool = false,
+		logHandler: ((String) -> Void)? = nil,
+		completion: ((Bool, Error?) -> Void)? = nil
+	) -> Bool {
+		if let logHandler {
+			ZsignSetLogHandler { (line: String?) in
+				guard let line else { return }
+				logHandler(line)
+			}
+		}
+		defer {
+			if logHandler != nil {
+				ZsignSetLogHandler(nil)
+			}
+		}
+		if zsignExtractIPA(
+			ipaPath,
+			outputFolderPath,
+			zh,
+			completion.map { callback in
+				{ success, error in
+					callback(success, error)
+				}
+			}
+		) != 0 {
+			return false
+		}
+		return true
+	}
+
 	/// Check revokage
 	/// - Parameters:
 	///   - provisionPath: Relative path to a provisioning file (i.e. `samara.mobileprovision`)

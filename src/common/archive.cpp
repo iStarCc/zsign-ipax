@@ -256,72 +256,15 @@ bool Zip::ArchivePayloadFolderForIPA(const string& strPayloadFolder, const strin
 	return bRet;
 }
 
-bool Zip::_EnumZipItems(const char* zip_file, enum_zip_items_callback callback)
-{
-	unzFile uf = unzOpen64(zip_file);
-	if (NULL == uf) {
-		return false;
-	}
-
-	unz_global_info64 gi;
-	if (UNZ_OK != unzGetGlobalInfo64(uf, &gi)) {
-		unzClose(uf);
-		return false;
-	}
-
-	bool bRet = true;
-	unz_file_info64 fi = { 0 };
-	char szPath[PATH_MAX] = { 0 };
-	for (uint64_t i = 0; i < gi.number_entry; i++) {
-		if (UNZ_OK != unzGetCurrentFileInfo64(uf, &fi, szPath, PATH_MAX, NULL, 0, NULL, 0)) {
-			bRet = false;
-			break;
-		}
-
-		string strPath = szPath;
-		ZUtil::StringTrim(strPath);
-
-#ifdef _WIN32
-		iconv ic;
-		strPath = ic.U82A(strPath);
-#endif
-
-		bool bFolder = false;
-		if (!strPath.empty() && ('/' == strPath.back())) {
-			bFolder = true;
-			strPath.pop_back();
-		}
-
-		if (strPath.empty()) {
-			if (i < gi.number_entry - 1) {
-				if (UNZ_OK != unzGoToNextFile(uf)) {
-					bRet = false;
-					break;
-				}
-			}
-			continue;
-		}
-
-		if (NULL != callback) {
-			if (!callback(uf, bFolder, strPath)) {
-				bRet = false;
-				break;
-			}
-		}
-
-		if (i < gi.number_entry - 1) {
-			if (UNZ_OK != unzGoToNextFile(uf)) {
-				bRet = false;
-				break;
-			}
-		}
-	}
-
-	unzClose(uf);
-	return bRet;
-}
-
-bool Zip::_ReadFileFromZip(void* hZip, const string& strPath, const string& strRootFolder)
+bool Zip::_ReadFileFromZip(
+	void* hZip,
+	const string& strPath,
+	const string& strRootFolder,
+	int entriesCompletedBefore,
+	int entryTotal,
+	const string& strRelativePathForLog,
+	uint64_t uncompressedSize,
+	bool withProgress)
 {
 	string strFile = strRootFolder + "/" + strPath;
 	string strFolder = strFile;
@@ -341,15 +284,48 @@ bool Zip::_ReadFileFromZip(void* hZip, const string& strPath, const string& strR
 		return false;
 	}
 
+	static const uint64_t kLargeFileThreshold = 8ULL * 1024ULL * 1024ULL;
+	static const uint64_t kHeartbeatBytes = 4ULL * 1024ULL * 1024ULL;
+	static const uint64_t kFirstPulseBytes = 1ULL * 1024ULL * 1024ULL;
+
 	bool bRet = true;
 	uint32_t uBufSize = 512 * 1024;
 	char* pbuff = (char*)malloc(uBufSize);
+	uint64_t written_total = 0;
+	uint64_t since_heartbeat = 0;
+	bool bDidFirstPulse = false;
 	if (NULL != pbuff) {
 		int32_t nReaded = unzReadCurrentFile(hZip, pbuff, uBufSize);
 		while (nReaded > 0) {
 			if (nReaded != fwrite(pbuff, 1, nReaded, fp)) {
 				bRet = false;
 				break;
+			}
+			written_total += (uint64_t)nReaded;
+			if (withProgress && entryTotal > 0) {
+				const bool largeKnown = (uncompressedSize >= kLargeFileThreshold);
+				const bool largeUnknown = (uncompressedSize == 0 && written_total >= kLargeFileThreshold);
+				if (largeKnown || largeUnknown) {
+					uint64_t totalMb = uncompressedSize / (1024ULL * 1024ULL);
+					if (uncompressedSize > 0 && totalMb < 1)
+						totalMb = 1;
+					if (uncompressedSize == 0)
+						totalMb = (written_total / (1024ULL * 1024ULL));
+					if (totalMb < 1)
+						totalMb = 1;
+					uint64_t doneMb = written_total / (1024ULL * 1024ULL);
+					if (!bDidFirstPulse && written_total >= kFirstPulseBytes) {
+						ZipLogExtractUnified(entriesCompletedBefore, entryTotal, strRelativePathForLog, doneMb, totalMb, true);
+						bDidFirstPulse = true;
+						since_heartbeat = 0;
+					} else {
+						since_heartbeat += (uint64_t)nReaded;
+						if (since_heartbeat >= kHeartbeatBytes) {
+							ZipLogExtractUnified(entriesCompletedBefore, entryTotal, strRelativePathForLog, doneMb, totalMb, true);
+							since_heartbeat = 0;
+						}
+					}
+				}
 			}
 			nReaded = unzReadCurrentFile(hZip, pbuff, uBufSize);
 		}
@@ -385,30 +361,124 @@ static bool _IsPathSafe(const string& strPath)
 	return true;
 }
 
-bool Zip::_Extract(const char* zip_file, const char* output_folder)
+bool Zip::_ExtractImpl(const char* zip_file, const char* output_folder, bool withProgress)
 {
-	return _EnumZipItems(zip_file, [&](unzFile uFile, bool bFolder, const string& strPath) {
+	unzFile uf = unzOpen64(zip_file);
+	if (NULL == uf) {
+		return false;
+	}
+
+	unz_global_info64 gi;
+	if (UNZ_OK != unzGetGlobalInfo64(uf, &gi)) {
+		unzClose(uf);
+		return false;
+	}
+
+	int nEntryTotal = (gi.number_entry > (uint64_t)INT_MAX) ? INT_MAX : (int)gi.number_entry;
+	int nDone = 0;
+
+	bool bRet = true;
+	unz_file_info64 fi = { 0 };
+	char szPath[PATH_MAX] = { 0 };
+	for (uint64_t i = 0; i < gi.number_entry; i++) {
+		if (UNZ_OK != unzGetCurrentFileInfo64(uf, &fi, szPath, PATH_MAX, NULL, 0, NULL, 0)) {
+			bRet = false;
+			break;
+		}
+
+		string strPath = szPath;
+		ZUtil::StringTrim(strPath);
+
+#ifdef _WIN32
+		iconv ic;
+		strPath = ic.U82A(strPath);
+#endif
+
+		bool bFolder = false;
+		if (!strPath.empty() && ('/' == strPath.back())) {
+			bFolder = true;
+			strPath.pop_back();
+		}
+
+		if (strPath.empty()) {
+			if (i < gi.number_entry - 1) {
+				if (UNZ_OK != unzGoToNextFile(uf)) {
+					bRet = false;
+					break;
+				}
+			}
+			continue;
+		}
+
 		if (!_IsPathSafe(strPath)) {
 			ZLog::ErrorV(">>> Zip: Skipping unsafe path: %s\n", strPath.c_str());
-			return true;
+			if (i < gi.number_entry - 1) {
+				if (UNZ_OK != unzGoToNextFile(uf)) {
+					bRet = false;
+					break;
+				}
+			}
+			continue;
 		}
+
 		if (bFolder) {
 			if (!ZFile::CreateFolderV("%s/%s", output_folder, strPath.c_str())) {
-				return false;
+				bRet = false;
+				break;
+			}
+			nDone++;
+			if (withProgress && nEntryTotal > 0) {
+				string strRelFolder = strPath + "/";
+				ZipLogExtractUnified(nDone, nEntryTotal, strRelFolder, 0, 0, false);
 			}
 		} else {
-			if (!_ReadFileFromZip(uFile, strPath, output_folder)) {
-				return false;
+			if (!_ReadFileFromZip(
+				    uf,
+				    strPath,
+				    output_folder,
+				    nDone,
+				    nEntryTotal,
+				    strPath,
+				    (uint64_t)fi.uncompressed_size,
+				    withProgress)) {
+				bRet = false;
+				break;
+			}
+			nDone++;
+			if (withProgress && nEntryTotal > 0) {
+				string strOutFile = string(output_folder) + "/" + strPath;
+				uint64_t dmb = 0, tmb = 0;
+				zipStatFileMb(strOutFile, &dmb, &tmb);
+				ZipLogExtractUnified(nDone, nEntryTotal, strPath, dmb, tmb, false);
 			}
 		}
-		return true;
-	});
+
+		if (i < gi.number_entry - 1) {
+			if (UNZ_OK != unzGoToNextFile(uf)) {
+				bRet = false;
+				break;
+			}
+		}
+	}
+
+	unzClose(uf);
+	return bRet;
 }
 
 bool Zip::Extract(const char* zip_file, const char* output_folder)
 {
 	ZFile::RemoveFolder(output_folder);
-	if (!_Extract(zip_file, output_folder)) {
+	if (!_ExtractImpl(zip_file, output_folder, false)) {
+		ZFile::RemoveFolder(output_folder);
+		return false;
+	}
+	return true;
+}
+
+bool Zip::ExtractWithProgress(const char* zip_file, const char* output_folder)
+{
+	ZFile::RemoveFolder(output_folder);
+	if (!_ExtractImpl(zip_file, output_folder, true)) {
 		ZFile::RemoveFolder(output_folder);
 		return false;
 	}

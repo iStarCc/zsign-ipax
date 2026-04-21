@@ -581,6 +581,72 @@ int zsignArchiveFolderToIPA(
 	return bRet ? 0 : -1;
 }
 
+int zsignExtractIPA(
+	NSString *ipaPath,
+	NSString *outputFolderPath,
+	bool zh,
+	void (^ _Nullable completionHandler)(BOOL success, NSError * _Nullable error)
+) {
+	ZsignLangScope langScope(zh);
+
+	ZTimer atimer;
+	ZTimer gtimer;
+
+	if (!ipaPath || [ipaPath length] == 0) {
+		ZLog::Error(">>> Extract: input path is required.\n");
+		if (completionHandler) {
+			completionHandler(NO, [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Input path is required"}]);
+		}
+		return -1;
+	}
+	if (!outputFolderPath || [outputFolderPath length] == 0) {
+		ZLog::Error(">>> Extract: output folder is required.\n");
+		if (completionHandler) {
+			completionHandler(NO, [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Output folder is required"}]);
+		}
+		return -1;
+	}
+
+	string strPath = [ipaPath cStringUsingEncoding:NSUTF8StringEncoding];
+	string strOut = [outputFolderPath cStringUsingEncoding:NSUTF8StringEncoding];
+
+	if (!ZFile::IsFileExists(strPath.c_str())) {
+		ZLog::ErrorV(">>> Invalid path! %s\n", strPath.c_str());
+		if (completionHandler) {
+			completionHandler(NO, [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Invalid input path"}]);
+		}
+		return -1;
+	}
+	if (!ZFile::IsZipFile(strPath.c_str())) {
+		ZLog::Error(">>> Extract: not a zip file.\n");
+		if (completionHandler) {
+			completionHandler(NO, [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Not a zip file"}]);
+		}
+		return -1;
+	}
+
+	atimer.Reset();
+	ZLog::PrintV(">>> Unzip:\t%s (%s) -> %s ... \n", ZUtil::GetBaseName(strPath.c_str()), ZFile::GetFileSizeString(strPath.c_str()).c_str(), strOut.c_str());
+	bool bRet = Zip::ExtractWithProgress(strPath.c_str(), strOut.c_str());
+	if (!bRet) {
+		ZLog::ErrorV(">>> Unzip failed!\n");
+	} else {
+		atimer.PrintResult(true, ">>> Unzip OK!");
+	}
+
+	NSError *extractError = nil;
+	if (!bRet) {
+		extractError = [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Unzip failed"}];
+	}
+
+	if (completionHandler) {
+		completionHandler(bRet, extractError);
+	}
+
+	gtimer.Print(">>> Done.");
+	return bRet ? 0 : -1;
+}
+
 
 int checkCert(
 	NSString *prov,

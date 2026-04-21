@@ -17,3 +17,12 @@ void ZipLogCompressUnified(
 	uint64_t fileDoneMb,
 	uint64_t fileTotalMb,
 	bool isPartialForCurrentFile);
+
+/** 与 ZipLogCompressUnified 相同格式，用于解压 ZIP/IPA（单行条目进度 + 大文件心跳）。 */
+void ZipLogExtractUnified(
+	int entriesCompletedBefore,
+	int entryTotal,
+	const string& strRelativePath,
+	uint64_t fileDoneMb,
+	uint64_t fileTotalMb,
+	bool isPartialForCurrentFile);

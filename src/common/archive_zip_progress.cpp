@@ -84,3 +84,56 @@ void ZipLogCompressUnified(
 			overall);
 	}
 }
+
+void ZipLogExtractUnified(
+	int entriesCompletedBefore,
+	int entryTotal,
+	const string& strRelativePath,
+	uint64_t fileDoneMb,
+	uint64_t fileTotalMb,
+	bool isPartialForCurrentFile)
+{
+	if (entryTotal <= 0)
+		return;
+
+	const double w = 100.0 / (double)entryTotal;
+	double overallD;
+	if (isPartialForCurrentFile) {
+		const double denom = (fileTotalMb > 0) ? (double)fileTotalMb : 1.0;
+		const double frac = (double)fileDoneMb / denom;
+		overallD = (double)entriesCompletedBefore * w + frac * w;
+	} else {
+		overallD = (double)entriesCompletedBefore * w;
+	}
+	int overall = (int)(overallD + 0.5);
+	if (overall < 0)
+		overall = 0;
+	if (overall > 100)
+		overall = 100;
+
+	const int displayEntry = isPartialForCurrentFile ? (entriesCompletedBefore + 1) : entriesCompletedBefore;
+
+	string pathCopy = strRelativePath;
+	while (!pathCopy.empty() && (pathCopy.back() == '/' || pathCopy.back() == '\\')) {
+		pathCopy.pop_back();
+	}
+	const char* base = pathCopy.empty() ? "" : ZUtil::GetBaseName(pathCopy.c_str());
+
+	if (EnvPreferChinese()) {
+		ZLog::PrintV("解压文件（%d/%d）： %s（%llu/%llu MB）总计（%d%%）\n",
+			displayEntry,
+			entryTotal,
+			base,
+			(unsigned long long)fileDoneMb,
+			(unsigned long long)fileTotalMb,
+			overall);
+	} else {
+		ZLog::PrintV("Extracting files (%d/%d): %s (%llu/%llu MB) overall (%d%%)\n",
+			displayEntry,
+			entryTotal,
+			base,
+			(unsigned long long)fileDoneMb,
+			(unsigned long long)fileTotalMb,
+			overall);
+	}
+}

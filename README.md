@@ -51,6 +51,7 @@ All APIs are on `public enum Zsign` (static methods). Paths are **filesystem pat
 | `sign(...)` | Signs an **`.app` bundle** (folder path). Matches CLI flags: `removeUISupportedDevices` (`-U`), `removeWatchApp` (`-W`), `enableDocuments` (`-S`), `minOSVersion` (`-M`), `removeExtensions` (`-E`). Set `zh: true` for Chinese `ZLog` output during the call (via `ZSIGN_LANG`). Optional `logHandler` installs a **real-time** log sink for that call only. |
 | `signIPA(...)` | Signs and writes an **`.ipa`**: input may be an existing `.ipa` (extracted internally) or an **`.app` folder**; output path is the new `.ipa`. Uses minizip (same idea as CLI `-o`), UTF-8 entry names, optional `zipLevel` (0–9), `tempFolderPath`, `zh`, `logHandler`. |
 | `archiveFolderToIPA(...)` | **Zip-only**: `folderPath` must be the **`Payload` directory** (path ends with `/Payload`). Only **immediate children** of `Payload` are checked (no recursion); among those there must be **exactly one** **`*.app` bundle** (`Payload/xxx.app`). No signing. Same compression logging as `signIPA`. |
+| `extractIPA(...)` | **Unzip-only**: expands an **`.ipa`** (or any ZIP) into a **folder**. Validates zip magic like `signIPA`; same path-safety rules as the internal unzip step. Logs `>>> Unzip:` / timing plus **per-entry progress** lines in the same shape as compression (`Extracting files (n/m): … overall (p%)` / `解压文件（n/m）：…` on large files), UTF-8. Optional `zh`, `logHandler`, `completion`. |
 | `setLogHandler(_:)` | Registers a **real-time** callback for every `ZLog` line (UTF-8, after i18n); pass `nil` to clear. |
 | `checkRevokage(...)` | OCSP-style certificate check (async); see below. |
 
@@ -140,6 +141,21 @@ _ = Zsign.archiveFolderToIPA(
     outputPath: "/path/to/out.ipa",
     zipLevel: 6,
     zh: false
+) { success, error in
+    if !success { print(error?.localizedDescription ?? "failed") }
+}
+```
+
+### Extract an IPA to a folder (`extractIPA`)
+
+Use when you only need to unpack an **`.ipa`** (or another ZIP) to a directory—**no signing**. The destination folder is removed first if it already exists (same behavior as the unzip step inside `signIPA`). Progress lines mirror **`signIPA` / `archiveFolderToIPA` compression** (entry index, basename, MB, overall percent; heartbeat on large files).
+
+```swift
+_ = Zsign.extractIPA(
+    ipaPath: "/path/to/App.ipa",
+    outputFolderPath: "/path/to/extracted",   // directory will be created/overwritten
+    zh: false,
+    logHandler: { line in print(line, terminator: "") }
 ) { success, error in
     if !success { print(error?.localizedDescription ?? "failed") }
 }
