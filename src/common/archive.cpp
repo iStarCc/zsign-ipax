@@ -4,7 +4,41 @@
 #include "third-party/minizip/zip.h"
 #include "third-party/minizip/unzip.h"
 
+#include <atomic>
 #include <sys/stat.h>
+
+namespace {
+
+std::atomic<bool> g_zipArchiveCancelRequested{ false };
+std::atomic<bool> g_zipArchiveLastFailureWasUserCancel{ false };
+
+} // namespace
+
+void ZipBeginArchiveOperation()
+{
+	g_zipArchiveCancelRequested.store(false, std::memory_order_release);
+	g_zipArchiveLastFailureWasUserCancel.store(false, std::memory_order_release);
+}
+
+void ZipRequestArchiveCancel()
+{
+	g_zipArchiveCancelRequested.store(true, std::memory_order_release);
+}
+
+bool ZipIsArchiveCancelRequested()
+{
+	return g_zipArchiveCancelRequested.load(std::memory_order_acquire);
+}
+
+bool ZipArchiveLastFailureWasUserCancel()
+{
+	return g_zipArchiveLastFailureWasUserCancel.load(std::memory_order_acquire);
+}
+
+static void ZipMarkArchiveStoppedByUserCancel()
+{
+	g_zipArchiveLastFailureWasUserCancel.store(true, std::memory_order_release);
+}
 
 #if !defined(S_ISREG) && defined(S_IFMT) && defined(S_IFREG)
 #define S_ISREG(m) (((m)&S_IFMT) == S_IFREG)
@@ -102,6 +136,12 @@ bool Zip::_WriteFileToZip(void* hZip, const string& strFile, const string& strRe
 	char buffer[4096];
 	size_t bytes_read = fread(buffer, 1, sizeof(buffer), fp);
 	while (bytes_read > 0) {
+		if (ZipIsArchiveCancelRequested()) {
+			ZipMarkArchiveStoppedByUserCancel();
+			ZLog::Print(">>> Zip: archive cancelled (during file write).\n");
+			bRet = false;
+			break;
+		}
 		if (zipWriteInFileInZip(hZip, buffer, (uint32_t)bytes_read) < 0) {
 			bRet = false;
 			break;
@@ -162,6 +202,12 @@ bool Zip::Archive(const string& strFolder, const string& strZipFile, int nZipLev
 
 	bool bRet = true;
 	ZFile::EnumFolder(strFolder.c_str(), true, NULL, [&](bool bFolder, const string& strPath) {
+		if (ZipIsArchiveCancelRequested()) {
+			ZipMarkArchiveStoppedByUserCancel();
+			ZLog::Print(">>> Zip: archive cancelled (between entries).\n");
+			bRet = false;
+			return true;
+		}
 		string strRelativePath = strPath.substr(strFolder.size() + 1);
 		ZUtil::StringReplace(strRelativePath, "\\", "/");
 
@@ -220,6 +266,12 @@ bool Zip::ArchivePayloadFolderForIPA(const string& strPayloadFolder, const strin
 
 	bool bRet = true;
 	ZFile::EnumFolder(strFolder.c_str(), true, NULL, [&](bool bFolder, const string& strPath) {
+		if (ZipIsArchiveCancelRequested()) {
+			ZipMarkArchiveStoppedByUserCancel();
+			ZLog::Print(">>> Zip: archive cancelled (between entries).\n");
+			bRet = false;
+			return true;
+		}
 		string strRelativePath = strPath.substr(strFolder.size() + 1);
 		ZUtil::StringReplace(strRelativePath, "\\", "/");
 		strRelativePath = "Payload/" + strRelativePath;

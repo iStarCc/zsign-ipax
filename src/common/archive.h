@@ -2,6 +2,13 @@
 
 #include "common.h"
 
+/** 新一轮「仅归档」会话：在每次即将调用 `Zip::Archive` / `ArchivePayloadFolderForIPA` 之前由桥接层调用，清除上一轮的取消位与失败原因（避免上一任务残留的取消请求影响本次）。 */
+void ZipBeginArchiveOperation();
+void ZipRequestArchiveCancel();
+bool ZipIsArchiveCancelRequested();
+/** 上一轮 `Archive*` 返回 false 时，是否为「用户请求取消」（而非 IO/磁盘错误）。 */
+bool ZipArchiveLastFailureWasUserCancel();
+
 class Zip
 {
 public:

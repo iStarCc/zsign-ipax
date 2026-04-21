@@ -438,8 +438,13 @@ int zsignIPA(
 			}
 		}
 		if (bRet && !strBaseFolder.empty()) {
+			ZipBeginArchiveOperation();
 			if (!Zip::Archive(strBaseFolder, strOutputFile, nZipLevel)) {
-				ZLog::Error(">>> Archive failed!\n");
+				if (ZipArchiveLastFailureWasUserCancel()) {
+					ZLog::Print(">>> Archive cancelled by user.\n");
+				} else {
+					ZLog::Error(">>> Archive failed!\n");
+				}
 				bRet = false;
 			} else {
 				atimer.PrintResult(true, ">>> Archive OK! (%s)", ZFile::GetFileSizeString(strOutputFile.c_str()).c_str());
@@ -459,7 +464,11 @@ int zsignIPA(
 
 	NSError *signError = nil;
 	if (!bRet) {
-		signError = [NSError errorWithDomain:@"Failed to Sign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Signing or archiving failed."}];
+		if (ZipArchiveLastFailureWasUserCancel()) {
+			signError = [NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorCancelled userInfo:@{NSLocalizedDescriptionKey: @"Archive cancelled."}];
+		} else {
+			signError = [NSError errorWithDomain:@"Failed to Sign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Signing or archiving failed."}];
+		}
 	}
 
 	if (completionHandler) {
@@ -561,16 +570,25 @@ int zsignArchiveFolderToIPA(
 
 	atimer.Reset();
 	ZLog::PrintV(">>> Archiving: \t%s ... \n", ZUtil::GetBaseName(strOutput.c_str()));
+	ZipBeginArchiveOperation();
 	bool bRet = Zip::ArchivePayloadFolderForIPA(strPayloadFolder, strOutput, nZipLevel);
 	if (!bRet) {
-		ZLog::Error(">>> Archive failed!\n");
+		if (ZipArchiveLastFailureWasUserCancel()) {
+			ZLog::Print(">>> Archive cancelled by user.\n");
+		} else {
+			ZLog::Error(">>> Archive failed!\n");
+		}
 	} else {
 		atimer.PrintResult(true, ">>> Archive OK! (%s)", ZFile::GetFileSizeString(strOutput.c_str()).c_str());
 	}
 
 	NSError *archiveError = nil;
 	if (!bRet) {
-		archiveError = [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Archive failed"}];
+		if (ZipArchiveLastFailureWasUserCancel()) {
+			archiveError = [NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorCancelled userInfo:@{NSLocalizedDescriptionKey: @"Archive cancelled."}];
+		} else {
+			archiveError = [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Archive failed"}];
+		}
 	}
 
 	if (completionHandler) {
@@ -818,6 +836,16 @@ void ZsignSetLogHandler(void (^ _Nullable handler)(NSString * _Nullable line))
 	} else {
 		ZLog_ClearExternalSink();
 	}
+}
+
+void ZsignRequestZipArchiveCancel(void)
+{
+	ZipRequestArchiveCancel();
+}
+
+bool ZsignZipArchiveLastFailureWasUserCancel(void)
+{
+	return ZipArchiveLastFailureWasUserCancel() ? true : false;
 }
 
 }

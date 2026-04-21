@@ -94,6 +94,15 @@ int checkCert(
 /** 实时日志：每次 ZLog 输出一行（已 UTF-8、已 zlog_i18n）时回调；传 nil 关闭。可在任意线程调用。 */
 void ZsignSetLogHandler(void (^ _Nullable handler)(NSString * _Nullable line));
 
+/**
+ * 请求取消当前正在进行的 minizip 归档（`Zip::Archive` / `ArchivePayloadFolderForIPA`，含 `signIPA` / `archiveFolderToIPA` 内的压缩阶段）。
+ * 可在任意线程调用；底层在「条目之间」及「大文件分块写入」循环中轮询，尽量中止并产出 `NSURLErrorCancelled`。
+ */
+void ZsignRequestZipArchiveCancel(void);
+
+/** 仅查询：上一轮归档失败是否因上述取消（供调试；业务侧以 completion 的 NSError 为准）。 */
+bool ZsignZipArchiveLastFailureWasUserCancel(void);
+
 NS_ASSUME_NONNULL_END
 
 #ifdef __cplusplus

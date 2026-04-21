@@ -20,6 +20,17 @@ public enum Zsign {
 		}
 	}
 
+	/// 请求取消当前正在进行的 ZIP/IPA 压缩阶段（`signIPA`、`archiveFolderToIPA` 内部 `Zip::Archive*`）。可在任意线程调用。
+	/// 底层在条目之间与大文件分块写入处检查，完成后 `completion` 可能收到 `NSURLErrorCancelled`。
+	public static func requestZipArchiveCancel() {
+		ZsignRequestZipArchiveCancel()
+	}
+
+	/// 上一轮压缩失败是否因用户取消（普通失败为 `false`）；一般应以 completion 的 `error` 为准。
+	public static func zipArchiveLastFailureWasUserCancel() -> Bool {
+		ZsignZipArchiveLastFailureWasUserCancel()
+	}
+
 	/// Checks if the MachO-file is properly signed
 	/// - Parameter appExecutable: Executable
 	/// - Returns: True if its signed
