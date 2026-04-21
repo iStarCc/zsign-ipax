@@ -76,7 +76,7 @@ int zsignArchiveFolderToIPA(
 	void (^ _Nullable completionHandler)(BOOL success, NSError * _Nullable error)
 );
 
-/// 将 `.ipa`（或任意 ZIP）解压到目录；与 `signIPA` 内部解压一致的安全规则，并输出与压缩阶段同格式的条目进度（`Extracting files` / `解压文件`）及大文件心跳。
+/// 将 `.ipa`（或任意 ZIP）解压到目录；与 `signIPA` 内部解压一致的安全规则；起始日志仅包名与大小（无「-> 目标路径」），并输出与压缩阶段同格式的条目进度（`Unzipping files` / `正在解压`）及大文件心跳。
 int zsignExtractIPA(
 	NSString *ipaPath,
 	NSString *outputFolderPath,

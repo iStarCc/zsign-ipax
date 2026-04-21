@@ -67,7 +67,7 @@ void ZipLogCompressUnified(
 
 	/* 单行：条目进度 + 当前文件 MB + 总百分比，便于 Swift 解析；basename 夹在中间避免整行被长文件名占满 */
 	if (EnvPreferChinese()) {
-		ZLog::PrintV("压缩文件（%d/%d）： %s（%llu/%llu MB）总计（%d%%）\n",
+		ZLog::PrintV("正在压缩（%d/%d）： %s（%llu/%llu MB）总计（%d%%）\n",
 			displayEntry,
 			entryTotal,
 			base,
@@ -120,7 +120,7 @@ void ZipLogExtractUnified(
 	const char* base = pathCopy.empty() ? "" : ZUtil::GetBaseName(pathCopy.c_str());
 
 	if (EnvPreferChinese()) {
-		ZLog::PrintV("解压文件（%d/%d）： %s（%llu/%llu MB）总计（%d%%）\n",
+		ZLog::PrintV("正在解压（%d/%d）： %s（%llu/%llu MB）总计（%d%%）\n",
 			displayEntry,
 			entryTotal,
 			base,
@@ -128,7 +128,7 @@ void ZipLogExtractUnified(
 			(unsigned long long)fileTotalMb,
 			overall);
 	} else {
-		ZLog::PrintV("Extracting files (%d/%d): %s (%llu/%llu MB) overall (%d%%)\n",
+		ZLog::PrintV("Unzipping files (%d/%d): %s (%llu/%llu MB) overall (%d%%)\n",
 			displayEntry,
 			entryTotal,
 			base,

@@ -626,7 +626,7 @@ int zsignExtractIPA(
 	}
 
 	atimer.Reset();
-	ZLog::PrintV(">>> Unzip:\t%s (%s) -> %s ... \n", ZUtil::GetBaseName(strPath.c_str()), ZFile::GetFileSizeString(strPath.c_str()).c_str(), strOut.c_str());
+	ZLog::PrintV(">>> Unzip:\t%s (%s) ... \n", ZUtil::GetBaseName(strPath.c_str()), ZFile::GetFileSizeString(strPath.c_str()).c_str());
 	bool bRet = Zip::ExtractWithProgress(strPath.c_str(), strOut.c_str());
 	if (!bRet) {
 		ZLog::ErrorV(">>> Unzip failed!\n");
