@@ -19,6 +19,10 @@ public:
 	static bool Extract(const char* zip_file, const char* output_folder);
 	/** 解压 ZIP/IPA 到目录；与 `Extract` 相同清理/安全路径规则，额外输出与压缩一致的条目进度与大文件心跳（`ZipLogExtractUnified`）。 */
 	static bool ExtractWithProgress(const char* zip_file, const char* output_folder);
+	/** 校验 zip 是否为 IPA 布局：至少存在 `Payload/xxx.app` 路径（条目路径，UTF-8）。 */
+	static bool HasIpaLayout(const char* zip_file);
+	/** 解压到已有目录：不删除输出根目录；若目录不存在则创建。失败时不会自动清空整目录。 */
+	static bool ExtractWithProgressIntoExisting(const char* zip_file, const char* output_folder);
 
 private:
 	static bool _ReadFileFromZip(

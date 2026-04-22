@@ -599,6 +599,49 @@ int zsignArchiveFolderToIPA(
 	return bRet ? 0 : -1;
 }
 
+namespace {
+
+static bool ZsignPathHasIpaExtension(NSString *ipaPath)
+{
+	if (!ipaPath || [ipaPath length] == 0) {
+		return false;
+	}
+	return [[[ipaPath pathExtension] lowercaseString] isEqualToString:@"ipa"];
+}
+
+static bool ZsignRenameExistingPayloadIfNeeded(const char* outDirUTF8)
+{
+	@autoreleasepool {
+		NSFileManager *fm = [NSFileManager defaultManager];
+		NSString *out = [NSString stringWithUTF8String:outDirUTF8];
+		if (!out) {
+			return false;
+		}
+		NSString *payload = [out stringByAppendingPathComponent:@"Payload"];
+		BOOL isDir = NO;
+		if (![fm fileExistsAtPath:payload isDirectory:&isDir] || !isDir) {
+			return true;
+		}
+		for (int n = 1; n < 10000; n++) {
+			NSString *name = [NSString stringWithFormat:@"Payload%d", n];
+			NSString *candidate = [out stringByAppendingPathComponent:name];
+			if (![fm fileExistsAtPath:candidate]) {
+				NSError *err = nil;
+				if (![fm moveItemAtPath:payload toPath:candidate error:&err]) {
+					ZLog::ErrorV(">>> Extract: failed to rename Payload: %s\n", err ? [[err localizedDescription] UTF8String] : "unknown");
+					return false;
+				}
+				ZLog::PrintV(">>> Unzip:\tRenamed existing Payload to %s ... \n", [name UTF8String]);
+				return true;
+			}
+		}
+		ZLog::Error(">>> Extract: too many Payload backups.\n");
+		return false;
+	}
+}
+
+} // namespace
+
 int zsignExtractIPA(
 	NSString *ipaPath,
 	NSString *outputFolderPath,
@@ -642,10 +685,44 @@ int zsignExtractIPA(
 		}
 		return -1;
 	}
+	if (!ZsignPathHasIpaExtension(ipaPath)) {
+		ZLog::Error(">>> Extract: input must be an .ipa file.\n");
+		if (completionHandler) {
+			completionHandler(NO, [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Input must be a .ipa file"}]);
+		}
+		return -1;
+	}
+	if (!Zip::HasIpaLayout(strPath.c_str())) {
+		ZLog::Error(">>> Extract: not a valid IPA (missing Payload/xxx.app).\n");
+		if (completionHandler) {
+			completionHandler(NO, [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Not a valid IPA (expected Payload/xxx.app in archive)"}]);
+		}
+		return -1;
+	}
+	if (ZFile::IsFileExists(strOut.c_str()) && !ZFile::IsFolder(strOut.c_str())) {
+		ZLog::Error(">>> Extract: output path must be a directory.\n");
+		if (completionHandler) {
+			completionHandler(NO, [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Output path must be a directory"}]);
+		}
+		return -1;
+	}
+	if (!ZFile::CreateFolder(strOut.c_str())) {
+		ZLog::Error(">>> Extract: output directory could not be created.\n");
+		if (completionHandler) {
+			completionHandler(NO, [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Output directory could not be created"}]);
+		}
+		return -1;
+	}
+	if (!ZsignRenameExistingPayloadIfNeeded(strOut.c_str())) {
+		if (completionHandler) {
+			completionHandler(NO, [NSError errorWithDomain:@"Zsign" code:-1 userInfo:@{NSLocalizedDescriptionKey: @"Failed to rename existing Payload"}]);
+		}
+		return -1;
+	}
 
 	atimer.Reset();
 	ZLog::PrintV(">>> Unzip:\t%s (%s) ... \n", ZUtil::GetBaseName(strPath.c_str()), ZFile::GetFileSizeString(strPath.c_str()).c_str());
-	bool bRet = Zip::ExtractWithProgress(strPath.c_str(), strOut.c_str());
+	bool bRet = Zip::ExtractWithProgressIntoExisting(strPath.c_str(), strOut.c_str());
 	if (!bRet) {
 		ZLog::ErrorV(">>> Unzip failed!\n");
 	} else {

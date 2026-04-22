@@ -90,7 +90,7 @@ int usage()
 	ZLog::Print("-p, --password\t\tPassword for private key or p12 file.\n");
 	ZLog::Print("-b, --bundle_id\t\tNew bundle id to change.\n");
 	ZLog::Print("-n, --bundle_name\tNew bundle name to change.\n");
-	ZLog::Print("-r, --bundle_version\tNew bundle version to change.\n");
+	ZLog::Print("-r, --bundle_version\tSet CFBundleShortVersionString only (CFBundleVersion unchanged).\n");
 	ZLog::Print("-e, --entitlements\tNew entitlements to change.\n");
 	ZLog::Print("-z, --zip_level\t\tCompressed level when output the ipa file. (0-9)\n");
 	ZLog::Print("-l, --dylib\t\tPath to inject dylib file. Use -l multiple time to inject multiple dylib files at once.\n");

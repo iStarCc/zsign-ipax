@@ -5,6 +5,7 @@
 #include "third-party/minizip/unzip.h"
 
 #include <atomic>
+#include <cstring>
 #include <sys/stat.h>
 
 namespace {
@@ -413,6 +414,87 @@ static bool _IsPathSafe(const string& strPath)
 	return true;
 }
 
+static bool _PathLooksLikePayloadApp(string strPath)
+{
+	ZUtil::StringReplace(strPath, "\\", "/");
+	while (!strPath.empty() && (strPath.back() == '/' || strPath.back() == '\\')) {
+		strPath.pop_back();
+	}
+	if (strPath.size() < 9) {
+		return false;
+	}
+#if defined(_WIN32)
+	if (_strnicmp(strPath.c_str(), "Payload/", 8) != 0) {
+		return false;
+	}
+#else
+	if (strncasecmp(strPath.c_str(), "Payload/", 8) != 0) {
+		return false;
+	}
+#endif
+	const char* rest = strPath.c_str() + 8;
+	if (*rest == '\0') {
+		return false;
+	}
+	const char* slash = strchr(rest, '/');
+	size_t segLen = slash ? (size_t)(slash - rest) : strlen(rest);
+	if (segLen < 5) {
+		return false;
+	}
+	const char* seg = rest;
+#if defined(_WIN32)
+	return _strnicmp(seg + segLen - 4, ".app", 4) == 0;
+#else
+	return strncasecmp(seg + segLen - 4, ".app", 4) == 0;
+#endif
+}
+
+bool Zip::HasIpaLayout(const char* zip_file)
+{
+	unzFile uf = unzOpen64(zip_file);
+	if (NULL == uf) {
+		return false;
+	}
+
+	unz_global_info64 gi;
+	if (UNZ_OK != unzGetGlobalInfo64(uf, &gi)) {
+		unzClose(uf);
+		return false;
+	}
+
+	unz_file_info64 fi = { 0 };
+	char szPath[PATH_MAX] = { 0 };
+	for (uint64_t i = 0; i < gi.number_entry; i++) {
+		if (UNZ_OK != unzGetCurrentFileInfo64(uf, &fi, szPath, PATH_MAX, NULL, 0, NULL, 0)) {
+			unzClose(uf);
+			return false;
+		}
+
+		string strPath = szPath;
+		ZUtil::StringTrim(strPath);
+
+#ifdef _WIN32
+		iconv ic;
+		strPath = ic.U82A(strPath);
+#endif
+
+		if (_PathLooksLikePayloadApp(strPath)) {
+			unzClose(uf);
+			return true;
+		}
+
+		if (i < gi.number_entry - 1) {
+			if (UNZ_OK != unzGoToNextFile(uf)) {
+				unzClose(uf);
+				return false;
+			}
+		}
+	}
+
+	unzClose(uf);
+	return false;
+}
+
 bool Zip::_ExtractImpl(const char* zip_file, const char* output_folder, bool withProgress)
 {
 	unzFile uf = unzOpen64(zip_file);
@@ -535,4 +617,14 @@ bool Zip::ExtractWithProgress(const char* zip_file, const char* output_folder)
 		return false;
 	}
 	return true;
+}
+
+bool Zip::ExtractWithProgressIntoExisting(const char* zip_file, const char* output_folder)
+{
+	if (!ZFile::IsFolder(output_folder)) {
+		if (!ZFile::CreateFolder(output_folder)) {
+			return false;
+		}
+	}
+	return _ExtractImpl(zip_file, output_folder, true);
 }

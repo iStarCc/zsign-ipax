@@ -49,7 +49,7 @@ targets: [
 | `sign(...)` | 对 **`.app` 目录（bundle）** 进行签名。可选：`removeUISupportedDevices`（`-U`）、`removeWatchApp`（`-W`）、`enableDocuments`（`-S`）、`minOSVersion`（`-M`）、`removeExtensions`（`-E`）、`zh`、`logHandler`（仅本轮签名期间的实时日志）。 |
 | `signIPA(...)` | **签名并输出 IPA**：输入可为已有 `.ipa`（内部先解压）或 **`.app` 目录**；输出为新的 `.ipa`。底层 minizip，与命令行 `-o` 思路一致；支持 `zipLevel`、`tempFolderPath`、`zh`、`logHandler`；ZIP 内文件名为 UTF-8。 |
 | `archiveFolderToIPA(...)` | **仅压缩、不签名**：`folderPath` **必须**为 **`Payload`** 目录；**只检查 Payload 下一级**（不递归子文件夹），其中须有且仅有一个 **`.app`**（即 `Payload/xxx.app`）。 |
-| `extractIPA(...)` | **仅解压、不签名**：将 **`.ipa`**（或任意 ZIP）解压到**目录**；与 `signIPA` 内部解压相同的路径安全规则；起始日志为 `>>> Unzip:` **仅包名与大小**（不打印「→ 目标目录」，与 `signIPA` 内解压一致），随后为与压缩**同格式**的条目进度（`Unzipping files` / `正在解压`、大文件心跳），UTF-8。可选 `zh`、`logHandler`、`completion`。 |
+| `extractIPA(...)` | **仅解压、不签名**；**仅 `.ipa`**：扩展名须为 `.ipa`，且包内须含 **`Payload/xxx.app`**。解压到目标目录（**不删除**整个输出目录）；若目录下已有 **`Payload`**，先重命名为 **`Payload1`、`Payload2`…** 再解压。起始日志 `>>> Unzip:` **仅包名与大小**（与 `signIPA` 内解压一致），随后为条目进度（`Unzipping files` / `正在解压`、大文件心跳），UTF-8。可选 `zh`、`logHandler`、`completion`。 |
 | `setLogHandler(_:)` | 注册全局实时日志回调（每条 `ZLog` 一行）；传 `nil` 取消。 |
 | `checkRevokage(...)` | 证书 OCSP 相关检查（异步回调），见下文。 |
 
@@ -146,7 +146,7 @@ _ = Zsign.archiveFolderToIPA(
 
 ### 仅解压 IPA（`extractIPA`）
 
-仅需把 **`.ipa`**（或其它 ZIP）展开到目录、**不做签名**时使用。若目标目录已存在会先删除再解压（与 `signIPA` 内部解压一致）。首行日志为 **`>>> Unzip:`** 仅 **包名与大小**（不打印「→ 输出目录」，与 `signIPA` 内解压一致）。随后进度行与 **`signIPA` / `archiveFolderToIPA` 的压缩日志**格式一致；前缀为 **`正在解压`**（压缩侧为 **`正在压缩`**），避免与压缩混淆。
+仅需把 **`.ipa`** 展开到目录、**不做签名**时使用。**输入**须为 **`.ipa`** 扩展名，且 zip 内为 **`Payload/xxx.app`** 结构。**不会**删除整个目标目录；若目录下已有 **`Payload`** 文件夹，会先自动重命名为 **`Payload1`**，若 `Payload1` 已存在则 **`Payload2`**… 直至可用名，再解压新的 `Payload`。首行日志为 **`>>> Unzip:`** 仅 **包名与大小**（与 `signIPA` 内解压一致）。随后进度行格式与压缩侧一致；前缀为 **`正在解压`**（压缩为 **`正在压缩`**）。
 
 ```swift
 _ = Zsign.extractIPA(

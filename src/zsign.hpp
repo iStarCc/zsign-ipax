@@ -76,7 +76,7 @@ int zsignArchiveFolderToIPA(
 	void (^ _Nullable completionHandler)(BOOL success, NSError * _Nullable error)
 );
 
-/// 将 `.ipa`（或任意 ZIP）解压到目录；与 `signIPA` 内部解压一致的安全规则；起始日志仅包名与大小（无「-> 目标路径」），并输出与压缩阶段同格式的条目进度（`Unzipping files` / `正在解压`）及大文件心跳。
+/// 仅 **`.ipa`**：扩展名须为 `.ipa`，且 zip 内须含 `Payload/xxx.app` 布局。解压到目标目录（不删除整目录）；若已存在 `Payload` 子目录则先重命名为 `Payload1`、`Payload2`… 再解压。起始日志仅包名与大小（无「-> 目标路径」），条目进度为 `Unzipping files` / `正在解压`。
 int zsignExtractIPA(
 	NSString *ipaPath,
 	NSString *outputFolderPath,

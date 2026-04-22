@@ -78,7 +78,7 @@ public enum Zsign {
 	///   - entitlementsPath: Relative path to an entitlements file
 	///   - customIdentifier: Custom indentifier for the app bundle
 	///   - customName: Custom display name for the app bundle
-	///   - customVersion: Custom version for the app bundle
+	///   - customVersion: 仅写入 `CFBundleShortVersionString`（显示版本），不修改 `CFBundleVersion`（构建号）
 	///   - adhoc: If the app bundle should be signed using Adhoc (no signing identity)
 	///   - removeProvision: If `embedded.mobileprovision` should be excluded when signing
 	///   - removeUISupportedDevices: If `UISupportedDevices` should be removed from `Info.plist` (same as zsign `-U` / `--rm_uisd`)
@@ -260,7 +260,7 @@ public enum Zsign {
 		return true
 	}
 
-	/// 将 `.ipa`（或任意 ZIP）解压到目录；与 `signIPA` 解压阶段相同的安全路径规则。起始行为 `>>> Unzip:` 仅含包名与大小（不打印「-> 输出目录」）。随后为与压缩同格式的条目进度（`Unzipping files` / `正在解压`）及大文件心跳；若传入 `logHandler` 可收到这些行（UTF-8）。
+	/// 仅支持 **`.ipa`** 文件（扩展名 + 包内须含 `Payload/xxx.app`）。解压到目标目录（**不会**删除整个输出目录）；若目录下已有 `Payload`，会先重命名为 `Payload1`、`Payload2`… 再解压。起始行为 `>>> Unzip:` 仅含包名与大小。随后为与压缩同格式的条目进度（`Unzipping files` / `正在解压`）及大文件心跳；若传入 `logHandler` 可收到这些行（UTF-8）。
 	/// - Parameter zh: 为本次调用设置 `ZSIGN_LANG=zh`，使进度等日志为中文（结束后恢复）。
 	static public func extractIPA(
 		ipaPath: String,

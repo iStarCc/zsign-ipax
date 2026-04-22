@@ -93,6 +93,11 @@ let package = Package(
 			sources: [
 				"zsign.swift"
 			]
+		),
+		.testTarget(
+			name: "ZsignSwiftTests",
+			dependencies: ["ZsignSwift"],
+			path: "Tests/ZsignSwiftTests"
 		)
 	]
 )

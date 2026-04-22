@@ -51,7 +51,7 @@ All APIs are on `public enum Zsign` (static methods). Paths are **filesystem pat
 | `sign(...)` | Signs an **`.app` bundle** (folder path). Matches CLI flags: `removeUISupportedDevices` (`-U`), `removeWatchApp` (`-W`), `enableDocuments` (`-S`), `minOSVersion` (`-M`), `removeExtensions` (`-E`). Set `zh: true` for Chinese `ZLog` output during the call (via `ZSIGN_LANG`). Optional `logHandler` installs a **real-time** log sink for that call only. |
 | `signIPA(...)` | Signs and writes an **`.ipa`**: input may be an existing `.ipa` (extracted internally) or an **`.app` folder**; output path is the new `.ipa`. Uses minizip (same idea as CLI `-o`), UTF-8 entry names, optional `zipLevel` (0–9), `tempFolderPath`, `zh`, `logHandler`. |
 | `archiveFolderToIPA(...)` | **Zip-only**: `folderPath` must be the **`Payload` directory** (path ends with `/Payload`). Only **immediate children** of `Payload` are checked (no recursion); among those there must be **exactly one** **`*.app` bundle** (`Payload/xxx.app`). No signing. Same compression logging as `signIPA`. |
-| `extractIPA(...)` | **Unzip-only**: expands an **`.ipa`** (or any ZIP) into a **folder**. Validates zip magic like `signIPA`; same path-safety rules as the internal unzip step. Start line is `>>> Unzip:` with **basename + size only** (no `-> output` path, same as the unzip step inside `signIPA`), then **per-entry progress** like compression (`Unzipping files` / `正在解压`), UTF-8. Optional `zh`, `logHandler`, `completion`. |
+| `extractIPA(...)` | **Unzip-only, `.ipa` only**: path extension must be **`.ipa`**, and the archive must contain **`Payload/xxx.app`**. Writes into the output folder **without deleting** the folder root; if **`Payload/`** already exists there, it is **renamed** to **`Payload1`**, then **`Payload2`**, … before extracting. Start line `>>> Unzip:` is **basename + size only** (same style as `signIPA`’s internal unzip), then per-entry progress (`Unzipping files` / `正在解压`). Optional `zh`, `logHandler`, `completion`. |
 | `setLogHandler(_:)` | Registers a **real-time** callback for every `ZLog` line (UTF-8, after i18n); pass `nil` to clear. |
 | `checkRevokage(...)` | OCSP-style certificate check (async); see below. |
 
@@ -148,7 +148,7 @@ _ = Zsign.archiveFolderToIPA(
 
 ### Extract an IPA to a folder (`extractIPA`)
 
-Use when you only need to unpack an **`.ipa`** (or another ZIP) to a directory—**no signing**. The destination folder is removed first if it already exists (same behavior as the unzip step inside `signIPA`). The first log line is **`>>> Unzip:`** with **basename + file size only** (no `-> output` path, same as the unzip step inside `signIPA`). Progress lines mirror **`signIPA` / `archiveFolderToIPA` compression** (entry index, basename, MB, overall percent; heartbeat on large files). Unzip lines use **`Unzipping files` / `正在解压`**, not “Compressing”.
+Use when you only need to unpack an **`.ipa`** to a directory—**no signing**. The input **must** use the **`.ipa`** extension and contain a valid IPA layout (**`Payload/Your.app/…`** in the zip). The output directory is **not** deleted as a whole; if it already contains a **`Payload`** folder, it is **renamed** to **`Payload1`**, **`Payload2`**, … (first free name), then the IPA is extracted. The first log line is **`>>> Unzip:`** with **basename + file size only** (same style as the unzip step inside `signIPA`). Progress lines mirror **`signIPA` / `archiveFolderToIPA` compression**; unzip prefixes are **`Unzipping files` / `正在解压`**.
 
 ```swift
 _ = Zsign.extractIPA(

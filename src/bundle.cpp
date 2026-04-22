@@ -563,10 +563,9 @@ bool ZBundle::ModifyBundleInfo(const string& strBundleId, const string& strBundl
 	}
 
 	if (!strBundleVersion.empty()) {
-		string strOldBundleVersion = jvInfo["CFBundleVersion"];
-		jvInfo["CFBundleVersion"] = strBundleVersion;
+		string strOldShortVersion = jvInfo["CFBundleShortVersionString"];
 		jvInfo["CFBundleShortVersionString"] = strBundleVersion;
-		ZLog::PrintV(">>> BundleVersion: %s -> %s\n", strOldBundleVersion.c_str(), strBundleVersion.c_str());
+		ZLog::PrintV(">>> CFBundleShortVersionString: %s -> %s\n", strOldShortVersion.c_str(), strBundleVersion.c_str());
 	}
 
 	jvInfo.style_write_plist_to_file("%s/Info.plist", m_strAppFolder.c_str());
