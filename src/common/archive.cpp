@@ -120,7 +120,9 @@ bool Zip::Archive(const string& strFolder, const string& strZipFile, int nZipLev
 		ZLog::ErrorV(">>> Zip: Invalid compression level: %d\n", nZipLevel);
         return false;
     }
-    
+
+	ZFile::RemoveMacPackagingJunk(strFolder.c_str());
+
     zipFile zf = zipOpen64(strZipFile.c_str(), 0);
     if (!zf) {
 		ZLog::ErrorV(">>> Zip: Failed to create zip file: %s\n", strZipFile.c_str());

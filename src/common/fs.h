@@ -42,6 +42,9 @@ public:
 
 	static bool		PathRemoveFileSpec(string& path);
 
+	/// 打包前删除 macOS 产生的垃圾文件/目录（含任意子目录下的匹配项）
+	static void		RemoveMacPackagingJunk(const char* szRoot);
+
 private:
 	static int RemoveFolderCallBack(const char* fpath, const struct stat* sb, int typeflag, struct FTW* ftwbuf);
 

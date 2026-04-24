@@ -472,6 +472,57 @@ const char* ZFile::GetTempFolder()
 	return s_strTempFolder.c_str();
 }
 
+static bool IsMacPackagingArtifact(bool bFolder, const string& strPath)
+{
+	string pathCopy = strPath;
+	const char* base = ZUtil::GetBaseName(pathCopy.c_str());
+	if (NULL == base || *base == '\0') {
+		return false;
+	}
+	string name(base);
+	if (name == ".DS_Store") {
+		return true;
+	}
+	if (name == "__MACOSX") {
+		return true;
+	}
+	if (name.size() >= 2 && name[0] == '.' && name[1] == '_') {
+		return true;
+	}
+	if (name == ".Spotlight-V100" || name == ".Trashes" || name == ".fseventsd" || name == ".AppleDouble" || name == ".LSOverride") {
+		return true;
+	}
+	(void)bFolder;
+	return false;
+}
+
+void ZFile::RemoveMacPackagingJunk(const char* szRoot)
+{
+	if (NULL == szRoot || !IsFolder(szRoot)) {
+		return;
+	}
+	vector<string> paths;
+	EnumFolder(szRoot, true, NULL, [&](bool bFolder, const string& strPath) {
+		if (IsMacPackagingArtifact(bFolder, strPath)) {
+			paths.push_back(strPath);
+		}
+		return false;
+	});
+	sort(paths.begin(), paths.end(), [](const string& a, const string& b) {
+		return a.size() > b.size();
+	});
+	for (const string& p : paths) {
+		if (!IsFileExists(p.c_str())) {
+			continue;
+		}
+		if (IsFolder(p.c_str())) {
+			RemoveFolder(p.c_str());
+		} else {
+			RemoveFile(p.c_str());
+		}
+	}
+}
+
 bool ZFile::EnumFolder(const char* szFolder, bool bRecursive, enum_folder_callback filter, enum_folder_callback callback)
 {
 	string strFolder = szFolder;
