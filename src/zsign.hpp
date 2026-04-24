@@ -43,7 +43,7 @@ int zsign(
 	void (^ _Nullable completionHandler)(BOOL success, NSError * _Nullable error)
 );
 
-/// 签名并输出 IPA：支持输入 `.ipa`（先解压）或 `.app`，使用 minizip 打包；压缩过程会通过 `ZLog` 输出进度（如「压缩中: n/m」），经 `zlog_i18n`/`ZSIGN_LANG` 本地化。
+/// 签名并输出 IPA：支持输入 `.ipa`（先解压）或 `.app`，使用 minizip 打包；**压缩前**对待打包根目录树递归清理 `.DS_Store`、`__MACOSX`、以 `._` 开头的资源叉、`.Spotlight-V100`、`.Trashes`、`.fseventsd`、`.AppleDouble`、`.LSOverride` 等。压缩过程会通过 `ZLog` 输出进度（如「压缩中: n/m」），经 `zlog_i18n`/`ZSIGN_LANG` 本地化。
 int zsignIPA(
 	NSString *inputPath,
 	NSString *outputPath,
@@ -67,7 +67,7 @@ int zsignIPA(
 	void (^ _Nullable completionHandler)(BOOL success, NSError * _Nullable error)
 );
 
-/// 将 `Payload` 目录打包为 `.ipa`（仅压缩，不签名）。`folderPath` **必须**为名为 `Payload` 的目录；**仅看 Payload 下一级**（不递归子目录），须有且仅有一个 `*.app` bundle（即 `Payload/xxx.app`）；压缩逻辑与 `zsignIPA` 最终阶段一致（`Zip::Archive` + UTF-8 文件名）。
+/// 将 `Payload` 目录打包为 `.ipa`（仅压缩，不签名）。`folderPath` **必须**为名为 `Payload` 的目录；**仅看 Payload 下一级**（不递归子目录），须有且仅有一个 `*.app` bundle（即 `Payload/xxx.app`）；**压缩前**对 `Payload` 下整棵树做与 `zsignIPA` 相同的元数据清理。压缩逻辑与 `zsignIPA` 最终阶段一致（`Zip::Archive` + UTF-8 文件名）。
 int zsignArchiveFolderToIPA(
 	NSString *folderPath,
 	NSString *outputPath,

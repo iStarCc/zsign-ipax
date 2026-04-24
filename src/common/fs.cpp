@@ -571,3 +571,119 @@ bool ZFile::PathRemoveFileSpec(string& path)
 	}
 	return false;
 }
+
+namespace {
+
+static bool IsIPAJunkTopLevelDirName(const char* name)
+{
+	if (NULL == name || !*name) {
+		return false;
+	}
+	if (0 == strcmp(name, "__MACOSX")
+		|| 0 == strcmp(name, ".Spotlight-V100")
+		|| 0 == strcmp(name, ".Trashes")
+		|| 0 == strcmp(name, ".fseventsd")
+		|| 0 == strcmp(name, ".AppleDouble")
+		|| 0 == strcmp(name, ".LSOverride")) {
+		return true;
+	}
+	// AppleDouble 资源叉影子文件在目录中极少见，若出现则整目录删除
+	if (name[0] == '.' && name[1] == '_' && name[2] != 0) {
+		return true;
+	}
+	return false;
+}
+
+static bool IsIPAJunkFileName(const char* name)
+{
+	if (NULL == name || !*name) {
+		return false;
+	}
+	if (0 == strcmp(name, ".DS_Store") || 0 == strcmp(name, ".LSOverride")) {
+		return true;
+	}
+	if (name[0] == '.' && name[1] == '_' && name[2] != 0) {
+		return true;
+	}
+	return false;
+}
+
+static void RemoveIPAJunkInFolderRecursive(const string& strFolder)
+{
+#ifdef _WIN32
+	string strFrom = strFolder + "\\*";
+	WIN32_FIND_DATAA fd = { 0 };
+	HANDLE hFind = ::FindFirstFileA(strFrom.c_str(), &fd);
+	if (INVALID_HANDLE_VALUE == hFind) {
+		return;
+	}
+	do {
+		if (0 == strcmp(fd.cFileName, ".") || 0 == strcmp(fd.cFileName, "..")) {
+			continue;
+		}
+		string strPath = strFolder + "\\" + fd.cFileName;
+		bool bFolder = (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+		if (bFolder) {
+			if (IsIPAJunkTopLevelDirName(fd.cFileName)) {
+				(void)ZFile::RemoveFolder(strPath.c_str());
+			} else {
+				RemoveIPAJunkInFolderRecursive(strPath);
+			}
+		} else {
+			if (IsIPAJunkFileName(fd.cFileName)) {
+				(void)ZFile::RemoveFile(strPath.c_str());
+			}
+		}
+	} while (::FindNextFileA(hFind, &fd));
+	::FindClose(hFind);
+#else
+	DIR* dir = opendir(strFolder.c_str());
+	if (NULL == dir) {
+		return;
+	}
+	dirent* ptr = readdir(dir);
+	while (NULL != ptr) {
+		if (0 == strcmp(ptr->d_name, ".") || 0 == strcmp(ptr->d_name, "..")) {
+			ptr = readdir(dir);
+			continue;
+		}
+		string strPath = strFolder + "/" + ptr->d_name;
+		bool bFolder = false;
+		if (DT_DIR == ptr->d_type) {
+			bFolder = true;
+		} else if (DT_UNKNOWN == ptr->d_type) {
+			struct stat st = { 0 };
+			if (0 == stat(strPath.c_str(), &st) && S_ISDIR(st.st_mode)) {
+				bFolder = true;
+			}
+		}
+		if (bFolder) {
+			if (IsIPAJunkTopLevelDirName(ptr->d_name)) {
+				(void)ZFile::RemoveFolder(strPath.c_str());
+			} else {
+				RemoveIPAJunkInFolderRecursive(strPath);
+			}
+		} else {
+			if (IsIPAJunkFileName(ptr->d_name)) {
+				(void)ZFile::RemoveFile(strPath.c_str());
+			}
+		}
+		ptr = readdir(dir);
+	}
+	closedir(dir);
+#endif
+}
+
+} // namespace
+
+bool ZFile::RemoveIPAPackagingJunkFromFolder(const char* szRoot)
+{
+	if (NULL == szRoot || !*szRoot) {
+		return false;
+	}
+	if (!IsFolder(szRoot)) {
+		return false;
+	}
+	RemoveIPAJunkInFolderRecursive(string(szRoot));
+	return true;
+}

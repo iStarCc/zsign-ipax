@@ -438,6 +438,7 @@ int zsignIPA(
 			}
 		}
 		if (bRet && !strBaseFolder.empty()) {
+			(void)ZFile::RemoveIPAPackagingJunkFromFolder(strBaseFolder.c_str());
 			ZipBeginArchiveOperation();
 			if (!Zip::Archive(strBaseFolder, strOutputFile, nZipLevel)) {
 				if (ZipArchiveLastFailureWasUserCancel()) {
@@ -570,6 +571,7 @@ int zsignArchiveFolderToIPA(
 
 	atimer.Reset();
 	ZLog::PrintV(">>> Archiving: \t%s ... \n", ZUtil::GetBaseName(strOutput.c_str()));
+	(void)ZFile::RemoveIPAPackagingJunkFromFolder(strPayloadFolder.c_str());
 	ZipBeginArchiveOperation();
 	bool bRet = Zip::ArchivePayloadFolderForIPA(strPayloadFolder, strOutput, nZipLevel);
 	if (!bRet) {
