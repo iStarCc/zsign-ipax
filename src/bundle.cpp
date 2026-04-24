@@ -122,7 +122,8 @@ bool ZBundle::GetObjectsToSign(const string& strFolder, jvalue& jvInfo)
 	
 	ZFile::EnumFolder(strFolder.c_str(), true, NULL, [&](bool bFolder, const string& strPath) {
 		if (bFolder || string::npos != strPath.find(".dSYM") ||
-			string::npos != strPath.find("_WatchKitStub")) {
+			string::npos != strPath.find("_WatchKitStub") ||
+			string::npos != strPath.find("com.apple.WatchPlaceholder")) {
 			return false;
 		}
 		bool bMachO = false;
