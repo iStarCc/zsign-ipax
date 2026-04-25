@@ -584,7 +584,8 @@ static bool IsIPAJunkTopLevelDirName(const char* name)
 		|| 0 == strcmp(name, ".Trashes")
 		|| 0 == strcmp(name, ".fseventsd")
 		|| 0 == strcmp(name, ".AppleDouble")
-		|| 0 == strcmp(name, ".LSOverride")) {
+		|| 0 == strcmp(name, ".LSOverride")
+		|| 0 == strcmp(name, ".zsign_cache")) {
 		return true;
 	}
 	// AppleDouble 资源叉影子文件在目录中极少见，若出现则整目录删除

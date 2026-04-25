@@ -43,7 +43,7 @@ int zsign(
 	void (^ _Nullable completionHandler)(BOOL success, NSError * _Nullable error)
 );
 
-/// 签名并输出 IPA：支持输入 `.ipa`（先解压）或 `.app`，使用 minizip 打包；**压缩前**对待打包根目录树递归清理 `.DS_Store`、`__MACOSX`、以 `._` 开头的资源叉、`.Spotlight-V100`、`.Trashes`、`.fseventsd`、`.AppleDouble`、`.LSOverride` 等。压缩过程会通过 `ZLog` 输出进度（如「压缩中: n/m」），经 `zlog_i18n`/`ZSIGN_LANG` 本地化。
+/// 签名并输出 IPA：支持输入 `.ipa`（先解压）或 `.app`，使用 minizip 打包；**压缩前**对待打包根目录树递归清理 `.DS_Store`、`__MACOSX`、以 `._` 开头的资源叉、`.Spotlight-V100`、`.Trashes`、`.fseventsd`、`.AppleDouble`、`.LSOverride`、`.zsign_cache` 等。压缩过程会通过 `ZLog` 输出进度（如「压缩中: n/m」），经 `zlog_i18n`/`ZSIGN_LANG` 本地化。
 int zsignIPA(
 	NSString *inputPath,
 	NSString *outputPath,

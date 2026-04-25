@@ -149,7 +149,7 @@ public enum Zsign {
 	}
 
 	/// 签名并打包为 IPA：输入可为 `.ipa`（内部先解压）或 `.app` 目录，输出为 `.ipa`（minizip，与命令行 zsign `-o` 一致）。
-	/// 压缩前会递归清理 macOS/解压元数据：`.DS_Store`、`__MACOSX`、以 `._` 开头的资源叉、`.Spotlight-V100`、`.Trashes`、`.fseventsd`、`.AppleDouble`、`.LSOverride` 等。
+	/// 压缩前会递归清理 macOS/解压及 zsign 元数据：`.DS_Store`、`__MACOSX`、以 `._` 开头的资源叉、`.Spotlight-V100`、`.Trashes`、`.fseventsd`、`.AppleDouble`、`.LSOverride`、`.zsign_cache` 等。
 	/// 压缩阶段会通过 `ZLog` 输出条目进度（如 `Compressing:` / `压缩中:`）及大文件心跳日志；若传入 `logHandler`，可同时收到这些行（与 `sign` 相同，UTF-8）。
 	/// - Parameters:
 	///   - zipLevel: ZIP 压缩级别 0–9，默认 6。
