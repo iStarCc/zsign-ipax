@@ -42,7 +42,7 @@ public:
 
 	static bool		PathRemoveFileSpec(string& path);
 
-	/// 打包前删除 macOS 产生的垃圾文件/目录（含任意子目录下的匹配项）
+	/// 打包前删除 macOS 垃圾、.zsign_cache 等（含任意子目录下的匹配项）
 	static void		RemoveMacPackagingJunk(const char* szRoot);
 
 private:

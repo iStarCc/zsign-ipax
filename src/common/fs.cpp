@@ -492,7 +492,9 @@ static bool IsMacPackagingArtifact(bool bFolder, const string& strPath)
 	if (name == ".Spotlight-V100" || name == ".Trashes" || name == ".fseventsd" || name == ".AppleDouble" || name == ".LSOverride") {
 		return true;
 	}
-	(void)bFolder;
+	if (bFolder && name == ".zsign_cache") {
+		return true;
+	}
 	return false;
 }
 
