@@ -2,6 +2,7 @@
 #include "json.h"
 #include "archo.h"
 #include "signing.h"
+#include <openssl/sha.h>
 
 uint64_t ZArchO::s_uExecSegLimit = 0;
 
@@ -239,6 +240,121 @@ bool ZArchO::IsSigned() const
 	}
 	
 	ZLog::PrintV("File is signed.\n");
+	return true;
+}
+
+bool ZArchO::VerifyCodeSlots(bool bSilent) const
+{
+	if (NULL == m_pBase || NULL == m_pSignBase || m_uSignLength < sizeof(CS_SuperBlob)) {
+		return false;
+	}
+
+	CS_SuperBlob* psb = (CS_SuperBlob*)m_pSignBase;
+	if (CSMAGIC_EMBEDDED_SIGNATURE != LE(psb->magic)) {
+		return false;
+	}
+
+	CS_BlobIndex* pbi = (CS_BlobIndex*)(m_pSignBase + sizeof(CS_SuperBlob));
+	for (uint32_t i = 0; i < LE(psb->count); i++, pbi++) {
+		uint32_t slotType = LE(pbi->type);
+		if (slotType != CSSLOT_CODEDIRECTORY && slotType != CSSLOT_ALTERNATE_CODEDIRECTORIES) {
+			continue;
+		}
+
+		uint8_t* pSlotBase = m_pSignBase + LE(pbi->offset);
+		CS_CodeDirectory cdHeader = *((CS_CodeDirectory*)pSlotBase);
+		if (CSMAGIC_CODEDIRECTORY != LE(cdHeader.magic)) {
+			if (!bSilent) ZLog::Error(">>> Verify: invalid CodeDirectory magic\n");
+			return false;
+		}
+
+		uint32_t uCodeLimit = LE(cdHeader.codeLimit);
+		uint32_t uPageSize = 1u << cdHeader.pageSize;
+		uint32_t nCodeSlots = LE(cdHeader.nCodeSlots);
+		uint8_t hashSize = cdHeader.hashSize;
+		uint8_t hashType = cdHeader.hashType;
+		uint8_t* pHashes = pSlotBase + LE(cdHeader.hashOffset);
+
+		for (uint32_t s = 0; s < nCodeSlots; s++) {
+			uint32_t uOffset = uPageSize * s;
+			uint32_t uSize = (uOffset + uPageSize <= uCodeLimit) ? uPageSize : (uCodeLimit - uOffset);
+
+			uint8_t computed[32] = {};
+			if (1 == hashType) {
+				::SHA1(m_pBase + uOffset, uSize, computed);
+			} else if (2 == hashType) {
+				::SHA256(m_pBase + uOffset, uSize, computed);
+			} else {
+				if (!bSilent) ZLog::ErrorV(">>> Verify: unknown hashType %u\n", hashType);
+				return false;
+			}
+
+			if (0 != memcmp(computed, pHashes + hashSize * s, hashSize)) {
+				if (!bSilent) ZLog::ErrorV(">>> Verify: code slot %u hash mismatch (hashType=%u)\n", s, hashType);
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+bool ZArchO::VerifyEmbeddedSignature(bool bCheckCMS) const
+{
+	if (NULL == m_pBase || NULL == m_pSignBase || m_uSignLength < sizeof(CS_SuperBlob)) {
+		ZLog::Error(">>> Verify: no embedded signature found\n");
+		return false;
+	}
+
+	CS_SuperBlob* psb = (CS_SuperBlob*)m_pSignBase;
+	if (CSMAGIC_EMBEDDED_SIGNATURE != LE(psb->magic)) {
+		ZLog::Error(">>> Verify: invalid SuperBlob magic\n");
+		return false;
+	}
+
+	uint32_t uBlobLength = LE(psb->length);
+	if (uBlobLength > m_uSignLength) {
+		ZLog::Error(">>> Verify: SuperBlob length exceeds signature region\n");
+		return false;
+	}
+
+	bool bHasCodeDir = false;
+	bool bHasCMS = false;
+	CS_BlobIndex* pbi = (CS_BlobIndex*)(m_pSignBase + sizeof(CS_SuperBlob));
+	for (uint32_t i = 0; i < LE(psb->count); i++, pbi++) {
+		uint32_t slotType = LE(pbi->type);
+		uint8_t* pSlotBase = m_pSignBase + LE(pbi->offset);
+
+		if (slotType == CSSLOT_CODEDIRECTORY || slotType == CSSLOT_ALTERNATE_CODEDIRECTORIES) {
+			CS_CodeDirectory* pcd = (CS_CodeDirectory*)pSlotBase;
+			if (CSMAGIC_CODEDIRECTORY != LE(pcd->magic)) {
+				ZLog::Error(">>> Verify: CodeDirectory has invalid magic\n");
+				return false;
+			}
+			if (LE(pcd->codeLimit) != m_uCodeLength) {
+				ZLog::ErrorV(">>> Verify: CodeDirectory codeLimit(%u) != actual codeLength(%u)\n", LE(pcd->codeLimit), m_uCodeLength);
+				return false;
+			}
+			bHasCodeDir = true;
+		} else if (slotType == CSSLOT_SIGNATURESLOT) {
+			uint32_t* pMagic = (uint32_t*)pSlotBase;
+			if (CSMAGIC_BLOBWRAPPER != LE(*pMagic)) {
+				ZLog::Error(">>> Verify: CMS blob has invalid magic\n");
+				return false;
+			}
+			bHasCMS = true;
+		}
+	}
+
+	if (!bHasCodeDir) {
+		ZLog::Error(">>> Verify: missing CodeDirectory\n");
+		return false;
+	}
+
+	if (bCheckCMS && !bHasCMS) {
+		ZLog::Error(">>> Verify: missing CMS Signature\n");
+		return false;
+	}
+
 	return true;
 }
 

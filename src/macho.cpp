@@ -121,6 +121,26 @@ bool ZMachO::CheckSignature() const
 	);
 }
 
+bool ZMachO::VerifyCodeSlots(bool bSilent) const
+{
+	for (size_t i = 0; i < m_arrArchOes.size(); i++) {
+		if (!m_arrArchOes[i]->VerifyCodeSlots(bSilent)) {
+			return false;
+		}
+	}
+	return !m_arrArchOes.empty();
+}
+
+bool ZMachO::VerifyEmbeddedSignature(bool bCheckCMS) const
+{
+	for (size_t i = 0; i < m_arrArchOes.size(); i++) {
+		if (!m_arrArchOes[i]->VerifyEmbeddedSignature(bCheckCMS)) {
+			return false;
+		}
+	}
+	return !m_arrArchOes.empty();
+}
+
 bool ZMachO::Sign(ZSignAsset* pSignAsset, bool bForce, string strBundleId, string strInfoSHA1, string strInfoSHA256, const string& strCodeResourcesData)
 {
 	if (NULL == m_pBase || m_arrArchOes.empty()) {

@@ -21,6 +21,8 @@ public:
 	void PrintInfo();
 	bool IsExecute();
 	bool IsSigned() const;
+	bool VerifyCodeSlots(bool bSilent = false) const;
+	bool VerifyEmbeddedSignature(bool bCheckCMS = true) const;
 	bool InjectDylib(bool bWeakInject, const char* szDylibFile);
 	void RemoveDylibs(const set<string>& setDylibs);
 	bool ChangeDylibPath(const char* oldPath, const char* newPath);

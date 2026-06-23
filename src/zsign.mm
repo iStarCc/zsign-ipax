@@ -269,6 +269,13 @@ int zsign(
 	ZLog::PrintV(">>> Signing:\t%s %s\n", ZUtil::GetBaseName(strPath.c_str()), (bAdhoc ? " (Ad-hoc)" : ""));
 	atimer.PrintResult(bRet, ">>> Signed %s!", bRet ? "OK" : "Failed");
 
+	if (bRet) {
+		if (!bundle.VerifySignedBundle(!bAdhoc)) {
+			ZLog::Error(">>> Post-sign verification FAILED!\n");
+			bRet = false;
+		}
+	}
+
 	NSError* signError = nil;
 	if (!bRet) {
 		NSDictionary* userInfo = @{
@@ -406,6 +413,13 @@ int zsignIPA(
 	bool bRet = bundle.SignFolder(&zsa, strFolder, strBundleId, strBundleVersion, strDisplayName, arrDylibFiles, arrRemoveDylibNames, bForce, bWeakInject, bEnableCache, dontGenerateEmbeddedMobileProvision);
 	ZLog::PrintV(">>> Signing:\t%s %s\n", ZUtil::GetBaseName(strPath.c_str()), (bAdhoc ? " (Ad-hoc)" : ""));
 	atimer.PrintResult(bRet, ">>> Signed %s!", bRet ? "OK" : "Failed");
+
+	if (bRet) {
+		if (!bundle.VerifySignedBundle(!bAdhoc)) {
+			ZLog::Error(">>> Post-sign verification FAILED!\n");
+			bRet = false;
+		}
+	}
 
 	if (bRet && !strOutputFile.empty()) {
 		atimer.Reset();
