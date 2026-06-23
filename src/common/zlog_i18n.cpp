@@ -171,11 +171,11 @@ static const char* gPairs[][2] = {
 	{"Signed:\tNo\n", "已签名：\t否\n"},
 
 	/* verify */
-	{"Verifying all Mach-O embedded signatures (", "开始校验（全包 Mach-O embedded，共 "},
+	{"Verifying all Mach-O embedded signatures (", "校验所有 Mach-O 嵌入签名（共 "},
 	{" files) ...\n", " 个）...\n"},
-	{"All Mach-O embedded verified OK (", "全包 Mach-O embedded 校验通过（共 "},
+	{"All Mach-O embedded verified OK (", "所有 Mach-O 嵌入签名校验通过（共 "},
 	{" files)\n", " 个）\n"},
-	{"Main binary embedded signature verified OK: ", "主程序 embedded 完整性校验通过："},
+	{"Main binary embedded signature verified OK: ", "主程序嵌入签名完整性校验通过："},
 	{"Verify FAILED: ", "校验失败："},
 	{"Verify: invalid CodeDirectory magic\n", "校验：无效的 CodeDirectory 魔数\n"},
 	{"Verify: unknown hashType ", "校验：未知哈希类型 "},
