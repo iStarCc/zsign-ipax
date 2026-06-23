@@ -24,6 +24,8 @@ public:
 					bool bEnableCache,
 					bool bRemoveProvision = false);
 
+	bool VerifySignedBundle(bool bCheckCMS = true);
+
 	bool SignFolder(list<ZSignAsset>* pSignAssets,
 					const string& strFolder,
 					const string& strBundleId,

@@ -411,6 +411,13 @@ int main(int argc, char* argv[])
 	}
 	atimer.PrintResult(bRet, ">>> Signed %s!", bRet ? "OK" : "Failed");
 
+	if (bRet) {
+		if (!bundle.VerifySignedBundle(!bAdhoc)) {
+			ZLog::Error(">>> Post-sign verification FAILED!\n");
+			bRet = false;
+		}
+	}
+
 	// Post-sign certificate check
 	if (bRet && bCheckSignature && !bundle.m_strAppFolder.empty()) {
 		CheckSignedBinary(bundle.m_strAppFolder);
