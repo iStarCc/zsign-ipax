@@ -417,37 +417,28 @@ bool ZBundle::SignNode(jvalue& jvNode)
 		return false;
 	}
 
-	if (m_pSignAssets) {
+	if (m_pSignAssets && !m_pSignAssets->empty()) {
 		auto endsWith = [](const string& str, const string& suffix) {
 			return str.size() >= suffix.size() && 0 == str.compare(str.size()-suffix.size(), suffix.size(), suffix);
 		};
 
+		bool bMatched = false;
 		for (auto it = m_pSignAssets->rbegin(); it != m_pSignAssets->rend(); ++it) {
-			m_pSignAsset = &(*it);
-			if (endsWith(m_pSignAsset->m_strApplicationId, strBundleId)) {
-				if (!ZFile::WriteFileV(m_pSignAsset->m_strProvData, "%s/%s/embedded.mobileprovision", m_strAppFolder.c_str(), strFolder.c_str())) {
-					ZLog::ErrorV(">>> Can't write embedded.mobileprovision!\n");
-					return false;
-				}
+			if (endsWith(it->m_strApplicationId, strBundleId)) {
+				m_pSignAsset = &(*it);
+				bMatched = true;
 				break;
 			}
 		}
-	}
 
-	if (m_pSignAssets) {
-		auto endsWith = [](const string& str, const string& suffix) {
-			return str.size() >= suffix.size() && 0 == str.compare(str.size()-suffix.size(), suffix.size(), suffix);
-		};
+		if (!bMatched) {
+			m_pSignAsset = &m_pSignAssets->front();
+			ZLog::PrintV(">>> No matching provision for %s, fallback to main bundle provision\n", strBundleId.c_str());
+		}
 
-		for (auto it = m_pSignAssets->rbegin(); it != m_pSignAssets->rend(); ++it) {
-			m_pSignAsset = &(*it);
-			if (endsWith(m_pSignAsset->m_strApplicationId, strBundleId)) {
-				if (!ZFile::WriteFileV(m_pSignAsset->m_strProvData, "%s/%s/embedded.mobileprovision", m_strAppFolder.c_str(), strFolder.c_str())) {
-					ZLog::ErrorV(">>> Can't write embedded.mobileprovision!\n");
-					return false;
-				}
-				break;
-			}
+		if (!ZFile::WriteFileV(m_pSignAsset->m_strProvData, "%s/%s/embedded.mobileprovision", m_strAppFolder.c_str(), strFolder.c_str())) {
+			ZLog::ErrorV(">>> Can't write embedded.mobileprovision!\n");
+			return false;
 		}
 	}
 
