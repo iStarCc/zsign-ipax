@@ -433,9 +433,10 @@ bool ZBundle::SignNode(jvalue& jvNode)
 
 		if (!bMatched) {
 			m_pSignAsset = &m_pSignAssets->front();
-			ZLog::PrintV(">>> No matching provision for %s, fallback to main bundle provision\n", strBundleId.c_str());
 		}
+	}
 
+	if (m_pSignAsset && !m_pSignAsset->m_strProvData.empty()) {
 		if (!ZFile::WriteFileV(m_pSignAsset->m_strProvData, "%s/%s/embedded.mobileprovision", m_strAppFolder.c_str(), strFolder.c_str())) {
 			ZLog::ErrorV(">>> Can't write embedded.mobileprovision!\n");
 			return false;
