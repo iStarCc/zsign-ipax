@@ -372,6 +372,35 @@ bool ZBundle::SignNode(jvalue& jvNode)
 		}
 	}
 
+	if (m_pSignAssets && !m_pSignAssets->empty()) {
+		auto endsWith = [](const string& str, const string& suffix) {
+			return str.size() >= suffix.size() && 0 == str.compare(str.size()-suffix.size(), suffix.size(), suffix);
+		};
+
+		bool bMatched = false;
+		for (auto it = m_pSignAssets->rbegin(); it != m_pSignAssets->rend(); ++it) {
+			if (endsWith(it->m_strApplicationId, strBundleId)) {
+				m_pSignAsset = &(*it);
+				bMatched = true;
+				break;
+			}
+		}
+
+		if (!bMatched) {
+			m_pSignAsset = &m_pSignAssets->front();
+		}
+	}
+
+	bool bNeedsProvision = ("/" == strFolder)
+		|| ZFile::IsPathSuffix(strFolder, ".app")
+		|| ZFile::IsPathSuffix(strFolder, ".appex");
+	if (bNeedsProvision && m_pSignAsset && !m_pSignAsset->m_strProvData.empty()) {
+		if (!ZFile::WriteFileV(m_pSignAsset->m_strProvData, "%s/%s/embedded.mobileprovision", m_strAppFolder.c_str(), strFolder.c_str())) {
+			ZLog::ErrorV(">>> Can't write embedded.mobileprovision!\n");
+			return false;
+		}
+	}
+
 	ZFile::CreateFolderV("%s/_CodeSignature", strBaseFolder.c_str());
 	string strCodeResFile = strBaseFolder + "/_CodeSignature/CodeResources";
 
@@ -415,35 +444,6 @@ bool ZBundle::SignNode(jvalue& jvNode)
 	if (!ZFile::WriteFile(strCodeResFile.c_str(), strCodeResData)) {
 		ZLog::ErrorV("\tWriting CodeResources failed! %s\n", strCodeResFile.c_str());
 		return false;
-	}
-
-	if (m_pSignAssets && !m_pSignAssets->empty()) {
-		auto endsWith = [](const string& str, const string& suffix) {
-			return str.size() >= suffix.size() && 0 == str.compare(str.size()-suffix.size(), suffix.size(), suffix);
-		};
-
-		bool bMatched = false;
-		for (auto it = m_pSignAssets->rbegin(); it != m_pSignAssets->rend(); ++it) {
-			if (endsWith(it->m_strApplicationId, strBundleId)) {
-				m_pSignAsset = &(*it);
-				bMatched = true;
-				break;
-			}
-		}
-
-		if (!bMatched) {
-			m_pSignAsset = &m_pSignAssets->front();
-		}
-	}
-
-	bool bNeedsProvision = ("/" == strFolder)
-		|| ZFile::IsPathSuffix(strFolder, ".app")
-		|| ZFile::IsPathSuffix(strFolder, ".appex");
-	if (bNeedsProvision && m_pSignAsset && !m_pSignAsset->m_strProvData.empty()) {
-		if (!ZFile::WriteFileV(m_pSignAsset->m_strProvData, "%s/%s/embedded.mobileprovision", m_strAppFolder.c_str(), strFolder.c_str())) {
-			ZLog::ErrorV(">>> Can't write embedded.mobileprovision!\n");
-			return false;
-		}
 	}
 
 	if (!macho.Sign(m_pSignAsset, bForceSign, strBundleId, strInfoSHA1, strInfoSHA256, strCodeResData)) {

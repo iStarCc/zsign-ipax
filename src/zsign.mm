@@ -402,6 +402,8 @@ int zsignIPA(
 		atimer.PrintResult(true, ">>> Unzip OK!");
 	}
 
+	(void)ZFile::RemoveIPAPackagingJunkFromFolder(strFolder.c_str());
+
 	atimer.Reset();
 	ZBundle bundle;
 	bundle.m_bRemoveUISupportedDevices = removeUISupportedDevices;
@@ -452,7 +454,6 @@ int zsignIPA(
 			}
 		}
 		if (bRet && !strBaseFolder.empty()) {
-			(void)ZFile::RemoveIPAPackagingJunkFromFolder(strBaseFolder.c_str());
 			ZipBeginArchiveOperation();
 			if (!Zip::Archive(strBaseFolder, strOutputFile, nZipLevel)) {
 				if (ZipArchiveLastFailureWasUserCancel()) {
