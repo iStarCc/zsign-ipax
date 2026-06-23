@@ -436,7 +436,10 @@ bool ZBundle::SignNode(jvalue& jvNode)
 		}
 	}
 
-	if (m_pSignAsset && !m_pSignAsset->m_strProvData.empty()) {
+	bool bNeedsProvision = ("/" == strFolder)
+		|| ZFile::IsPathSuffix(strFolder, ".app")
+		|| ZFile::IsPathSuffix(strFolder, ".appex");
+	if (bNeedsProvision && m_pSignAsset && !m_pSignAsset->m_strProvData.empty()) {
 		if (!ZFile::WriteFileV(m_pSignAsset->m_strProvData, "%s/%s/embedded.mobileprovision", m_strAppFolder.c_str(), strFolder.c_str())) {
 			ZLog::ErrorV(">>> Can't write embedded.mobileprovision!\n");
 			return false;
